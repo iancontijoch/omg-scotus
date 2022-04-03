@@ -1,0 +1,2 @@
+# omg-scotus
+SCOTUS updates
