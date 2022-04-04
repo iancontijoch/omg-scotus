@@ -45,9 +45,8 @@ class Opinion():
     def get_op_parties(self) -> Tuple[str, str]:
         pattern = 'SUPREME COURT OF THE UNITED STATES \n(.*) v. (.*)ON PETITION'
         petitioner, respondent = re.compile(pattern, re.DOTALL).search(self.op_page.extract_text()).groups()
-        petitioner = petitioner.replace('\n', '').replace('  ', ' ')
-        respondent = respondent.replace('\n', '').replace('  ', ' ')
-        petitioner, respondent = petitioner.strip(), respondent.strip()
+        petitioner = petitioner.replace('\n', '').replace('  ', ' ').strip()
+        respondent = respondent.replace('\n', '').replace('  ', ' ').strip()
 
         return petitioner, respondent
 
@@ -88,8 +87,9 @@ def latest_order(div: bs4.element.Tag):
     date = spans[0].text.strip()
     date = dateparser.parse(date).strftime('%Y-%m-%d')
     order_type = spans[1].text.strip()
+    order_url = f"https://www.supremecourt.gov/{spans[1].contents[0]['href']}"
 
-    return (date, order_type)
+    return (date, order_type, order_url)
 
 
 def detect_opinions(pages: List[str]):
@@ -99,19 +99,30 @@ def detect_opinions(pages: List[str]):
     return
 
 
-def read_pdf():
-    url = "https://www.supremecourt.gov/orders/courtorders/032822zor_f2bh.pdf"
+def read_pdf(url):
+    url = "https://www.supremecourt.gov/orders/courtorders/022222zor_bq7d.pdf"
     rq = requests.get(url)
 
     with pdfplumber.open(BytesIO(rq.content)) as pdf:
         opinion_pg = detect_opinions(pdf.pages)
         if opinion_pg:
             op = Opinion(opinion_pg_ix=opinion_pg, pages=pdf.pages[opinion_pg:])
+            order_pgs = pdf.pages[:opinion_pg]
+            txt = ''.join([p.extract_text() for p in order_pgs])
+            
+            pattern = r'CERTIORARI GRANTED(.*)CERTIORARI DENIED'
+            try:
+                granted_txt = re.compile(pattern, re.DOTALL).search(txt).groups()[0]
+                pattern = r'(\d+-\d+)\s+([\w\s\,\.,\(,\), ]+V. [\w\,\. ]+\n)'  # identify XX-XXX CASE NAME
+                cases = re.findall(pattern, granted_txt)
+                cases_list = '\n'.join(['  '.join(c).strip() for c in cases])
+                print(cases_list)
+            except AttributeError:
+                print("No cert grants.")
             breakpoint()
-            # opinion_pages = pdf.pages[opinion_pg:]
-            # pg = opinion_pages[0]
-            # opinion_pages = ''.join([remove_opinion_header(p) for p in opinion_pages])
-            # print(clean_opinion_text(opinion_pages))
+        else:
+            order_pgs = pdf.pages
+            print(''.join([p.extract_text() for p in order_pgs]))   
         return 0
 
 def main() -> int:
@@ -127,9 +138,8 @@ def main() -> int:
     hash = hashlib.sha256(div_orders.text.encode('utf-8')).hexdigest()
 
     # most recent order
-    print(latest_order(div_orders))
-
-    print(read_pdf())
+    date, order_type, order_url = latest_order(div_orders)
+    print(read_pdf(order_url))
 
     return 0
 
