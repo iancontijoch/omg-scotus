@@ -116,10 +116,13 @@ def read_pdf(url):
                 pattern = r'(\d+-\d+)\s+([\w\s\,\.,\(,\), ]+V. [\w\,\. ]+\n)'  # identify XX-XXX CASE NAME
                 cases = re.findall(pattern, granted_txt)
                 cases_list = '\n'.join(['  '.join(c).strip() for c in cases])
+                
+                print(f"\n\nCases Granted:\n{'-'*72}")
                 print(cases_list)
+                print('-'*72)
+                print('\n')
             except AttributeError:
                 print("No cert grants.")
-            breakpoint()
         else:
             order_pgs = pdf.pages
             print(''.join([p.extract_text() for p in order_pgs]))   
