@@ -1,3 +1,4 @@
+from datetime import datetime
 from distutils.command.clean import clean
 import bs4
 import requests
@@ -7,12 +8,23 @@ import dateparser
 import pdfplumber
 import re
 from io import BytesIO
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple, Any, Union
+from enum import Enum, auto
+
+
+class OrderSection(Enum):
+    CERTIORARI_SUMMARY_DISPOSITIONS = auto()
+    ORDERS_IN_PENDING_CASES = auto()
+    CERTIORARI_GRANTED = auto()
+    CERTIORARI_DENIED = auto()
+    HABEAS_CORPUS_DENIED = auto()
+    MANDAMUS_DENIED = auto()
+    REHEARINGS_DENIED = auto()
 
 
 class Opinion():
-    opinion_pg_ix = int
-    op_pages: Any
+    opinion_pg_ix: int
+    op_pages: List[pdfplumber.pdf.Page]
     case_name: str
     petitioner: str
     respondent: str
@@ -44,7 +56,8 @@ class Opinion():
 
     def get_op_parties(self) -> Tuple[str, str]:
         pattern = 'SUPREME COURT OF THE UNITED STATES \n(.*) v. (.*)ON PETITION'
-        petitioner, respondent = re.compile(pattern, re.DOTALL).search(self.op_page.extract_text()).groups()
+        petitioner, respondent = re.compile(pattern, re.DOTALL).search(
+            self.op_page.extract_text()).groups()
         petitioner = petitioner.replace('\n', '').replace('  ', ' ').strip()
         respondent = respondent.replace('\n', '').replace('  ', ' ').strip()
 
@@ -61,7 +74,6 @@ class Opinion():
         text = ''.join([self.remove_opinion_header(p) for p in self.op_pages])
         return self.clean_opinion_text(text)
 
-
     def clean_opinion_text(self, text: str):
         """Clean up text"""
         #  remove newline whitespace
@@ -69,7 +81,7 @@ class Opinion():
         #  join hyphenated spillovers
         text = re.sub(r'(\w)(- )(\w)', '\\1\\3', text)
         #  remove extra spaces between punctuation.
-        text = re.sub(r'([\.\,])  ', '\\1 ' , text)
+        text = re.sub(r'([\.\,])  ', '\\1 ', text)
         #  remove newlines after header removal
         text = re.sub(r'( \n )(\w)', ' \2', text)
         #  remove hyphenated spillovers after header removal
@@ -92,44 +104,78 @@ def latest_order(div: bs4.element.Tag):
     return (date, order_type, order_url)
 
 
-def detect_opinions(pages: List[str]):
+def detect_opinions(pages: List[str]) -> int:
     for i, page in enumerate(pages):
         if page.extract_text().split('\n')[0][:10] == '  Cite as:':
             return i
     return
 
 
-def read_pdf(url):
-    url = "https://www.supremecourt.gov/orders/courtorders/022222zor_bq7d.pdf"
+def read_pdf(url: str) -> pdfplumber.PDF.pages:
+    # url = "https://www.supremecourt.gov/orders/courtorders/032822zor_f2bh.pdf"
     rq = requests.get(url)
-
     with pdfplumber.open(BytesIO(rq.content)) as pdf:
-        opinion_pg = detect_opinions(pdf.pages)
-        if opinion_pg:
-            op = Opinion(opinion_pg_ix=opinion_pg, pages=pdf.pages[opinion_pg:])
-            order_pgs = pdf.pages[:opinion_pg]
-            txt = ''.join([p.extract_text() for p in order_pgs])
-            
-            pattern = r'CERTIORARI GRANTED(.*)CERTIORARI DENIED'
-            try:
-                granted_txt = re.compile(pattern, re.DOTALL).search(txt).groups()[0]
-                pattern = r'(\d+-\d+)\s+([\w\s\,\.,\(,\), ]+V. [\w\,\. ]+\n)'  # identify XX-XXX CASE NAME
-                cases = re.findall(pattern, granted_txt)
-                cases_list = '\n'.join(['  '.join(c).strip() for c in cases])
-                
-                print(f"\n\nCases Granted:\n{'-'*72}")
-                print(cases_list)
-                print('-'*72)
-                print('\n')
-            except AttributeError:
-                print("No cert grants.")
+        return pdf.pages
+
+
+def get_case_num_and_name(txt: str) -> str:
+    """Return case numbers/names XXX-XXXX   BOB v. ALICE or IN RE BOB for a given text."""
+
+    #  123-4567 or 12A34  BOB v. ALICE or IN RE BOB
+    pattern = r'(\d\d(?:-|\w)\d+)\s+([\w\,\.,\(,\),\', ]+V. [\w\,\.,\' ]+\n)|(\d\d(?:-|\w)\d+)\s+(IN RE [\w\,\.,\(,\), ]+) \n'
+    matches = re.findall(pattern, txt)
+    return matches
+
+
+def print_section_cases(section_name: str, cases: Union[list, str]) -> None:
+    """Prints the output for found cases"""
+    num_cases = 0
+    if isinstance(cases, list):
+        num_cases = len(cases)
+        cases = '\n'.join(['  '.join(m).strip() for m in cases])
+    print(f"\n{section_name}: {num_cases} case{(num_cases > 1)*'s'}\n{'-'*72}\n{cases}\n{'-'*72}\n")
+
+
+def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> None:
+    """Return cases for each section of the Order List"""
+
+    # stringify enum by replacing _ with space
+    current_section = section.name.replace('_', ' ')
+    txt = ''.join([p.extract_text() for p in pages])
+    # pattern to get the text in each section (w/ header ______ GRANTED/DENIED)
+    try:
+        if section is OrderSection.CERTIORARI_SUMMARY_DISPOSITIONS:
+            # name separately because of the hyphens
+            current_section = 'CERTIORARI -- SUMMARY DISPOSITIONS'
+            # next section doesn't begin with ____ GRANTED/DENIED
+            suffix = r'ORDERS +IN +PENDING +CASES'
         else:
-            order_pgs = pdf.pages
-            print(''.join([p.extract_text() for p in order_pgs]))   
-        return 0
+            suffix = r'\w+ (DENIED|GRANTED)'
+        # allow for multiple spaces between words (due to PDF import noise)
+        pattern = fr'{current_section.replace(" ", " +")}(.*?){suffix}'
+    except ValueError:  # this won't be the case anymore. Remove.
+        #  TODO Detect whether section is the last section and modify regex to bookend it.
+        # this only applies when there's an opinion. Need to fix.
+        pattern = r'REHEARINGS DENIED(.*)Cite as:'
+    try:
+        section_txt = re.compile(pattern, re.DOTALL).search(txt).groups()[0]
+        section_cases = get_case_num_and_name(section_txt)
+    except AttributeError:  # section doesn't appear in Order List
+        section_cases = "No Orders"
+    finally:
+        breakpoint()
+        print_section_cases(current_section, section_cases)
+
+
+def create_order_summary(pages: pdfplumber.PDF.pages, date: datetime.date, order_type: str) -> None:
+    print("\n\n--------ORDER LIST SUMMARY--------")
+    print(date)
+    print(order_type)
+    for section in OrderSection:
+        get_section_cases(pages, section)
+
 
 def main() -> int:
-
     url_orders = 'https://www.supremecourt.gov/orders/ordersofthecourt/21'
 
     page = requests.get(url_orders)
@@ -138,11 +184,15 @@ def main() -> int:
     # div with current orders
     div_orders = soup.find_all('div', class_='column2')[
         0]  # there is one for "More" orders
+    # to check for changes to order section
     hash = hashlib.sha256(div_orders.text.encode('utf-8')).hexdigest()
 
     # most recent order
     date, order_type, order_url = latest_order(div_orders)
-    print(read_pdf(order_url))
+    pgs = read_pdf(order_url)
+    pgs = read_pdf(
+        'https://www.supremecourt.gov/orders/courtorders/101821zor_4f14.pdf')  # buggy 
+    create_order_summary(pgs, date, order_type)
 
     return 0
 
