@@ -110,6 +110,15 @@ def detect_opinions(pages: List[str]) -> int:
             return i
     return
 
+def is_opinion(page: pdfplumber.pdf.Page) -> bool:
+    return page.extract_text().split('\n')[0][:10] == '  Cite as:'
+
+def add_page_end_line(page: pdfplumber.pdf.Page) -> str:
+    """Add a marker to the end of the page for regex"""
+    lines = page.extract_text().split('\n')[:-1]
+    lines.append('END_PAGE\n')
+    return '\n'.join(lines)
+
 
 def read_pdf(url: str) -> pdfplumber.PDF.pages:
     # url = "https://www.supremecourt.gov/orders/courtorders/032822zor_f2bh.pdf"
@@ -141,7 +150,7 @@ def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> Non
 
     # stringify enum by replacing _ with space
     current_section = section.name.replace('_', ' ')
-    txt = ''.join([p.extract_text() for p in pages])
+    txt = ''.join([add_page_end_line(p) for p in pages])
     # pattern to get the text in each section (w/ header ______ GRANTED/DENIED)
     try:
         if section is OrderSection.CERTIORARI_SUMMARY_DISPOSITIONS:
@@ -156,7 +165,7 @@ def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> Non
     except ValueError:  # this won't be the case anymore. Remove.
         #  TODO Detect whether section is the last section and modify regex to bookend it.
         # this only applies when there's an opinion. Need to fix.
-        pattern = r'REHEARINGS DENIED(.*)Cite as:'
+        pattern = r'REHEARINGS DENIED(.*)END_PAGE:'
     try:
         section_txt = re.compile(pattern, re.DOTALL).search(txt).groups()[0]
         section_cases = get_case_num_and_name(section_txt)
