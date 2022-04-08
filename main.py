@@ -110,15 +110,67 @@ def detect_opinions(pages: List[str]) -> int:
             return i
     return
 
-def is_opinion(page: pdfplumber.pdf.Page) -> bool:
-    return page.extract_text().split('\n')[0][:10] == '  Cite as:'
+def is_opinion(lines: List[str]) -> bool:
+    cond1 = lines[0][:10] == '  Cite as:' 
+    if cond1: 
+        try:
+            cond2 = ''.join(lines)[0][-3:].strip() == '1'
+        except IndexError:
+            breakpoint()
+        return cond1 and cond2
+    return cond1
 
-def add_page_end_line(page: pdfplumber.pdf.Page) -> str:
-    """Add a marker to the end of the page for regex"""
-    lines = page.extract_text().split('\n')[:-1]
-    lines.append('END_PAGE\n')
-    return '\n'.join(lines)
+def is_order(lines: List[str]) -> bool:
+    return lines[-1].isnumeric()
 
+def add_begin_end_page_delimiter(pages: pdfplumber.PDF.pages) -> str:
+    retv = []
+    for page in pages:
+        lines = page.extract_text().splitlines()
+        if page.page_number == 1:
+            retv.append('\nBEG_DOC\n')            
+        retv.append('\nBEG_PAGE\n')
+        retv.extend(lines)
+        retv.append('\nEND_PAGE\n')
+        if page.page_number == len(pages):
+            retv.append('\nEND_DOC')
+        
+    return '\n'.join(retv)
+
+def add_document_delimiters(pages: pdfplumber.PDF.pages) -> str:
+    """Add BEG/END page, BEG/END orders, BEG/END opinions 
+    delimiters for easy regex."""
+
+    retv = []
+
+    for i, page in enumerate(pages):
+        lines = page.extract_text().splitlines()
+        if page.page_number == 1 and is_order(lines):
+            retv.append('BEG_ORDERS')
+            retv.extend(lines)
+        elif all((page.page_number < len(pages) -2, 
+                 is_order(lines), 
+                 is_opinion(pages[i+1].extract_text().splitlines()))):
+            retv.extend(lines)
+            retv.append('END_ORDERS')
+            retv.append('BEG_OPINION')
+        elif all(
+            (page.page_number < len(pages) - 1,
+            is_opinion(lines),
+            is_opinion(pages[i+1].extract_text().splitlines()))
+        ):   
+            retv.append('END_OPINION')
+            retv.append('BEG_OPINION')
+            retv.extend(lines)
+        elif page.page_number == len(pages) and is_order(lines):  # last page
+            retv.extend(lines)
+            retv.append('END_ORDERS')
+        elif page.page_number == len(pages) and is_opinion(lines):
+            retv.extend(lines)
+            retv.append('END_OPINION')
+    
+    return '\n'.join(retv)        
+        
 
 def read_pdf(url: str) -> pdfplumber.PDF.pages:
     # url = "https://www.supremecourt.gov/orders/courtorders/032822zor_f2bh.pdf"
@@ -150,7 +202,7 @@ def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> Non
 
     # stringify enum by replacing _ with space
     current_section = section.name.replace('_', ' ')
-    txt = ''.join([add_page_end_line(p) for p in pages])
+    txt = add_begin_end_page_delimiter(pages)
     # pattern to get the text in each section (w/ header ______ GRANTED/DENIED)
     try:
         if section is OrderSection.CERTIORARI_SUMMARY_DISPOSITIONS:
@@ -172,7 +224,6 @@ def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> Non
     except AttributeError:  # section doesn't appear in Order List
         section_cases = "No Orders"
     finally:
-        breakpoint()
         print_section_cases(current_section, section_cases)
 
 
@@ -182,6 +233,25 @@ def create_order_summary(pages: pdfplumber.PDF.pages, date: datetime.date, order
     print(order_type)
     for section in OrderSection:
         get_section_cases(pages, section)
+        
+
+def get_opinions_from_orders(pages_str: str) -> str:
+    """Return text for all opinions included in the order list."""
+    retv = []
+    pattern = r' +Cite as: +\d\d\d U. S. ____ \(\d\d\d\d\) +1'
+    matches = re.finditer(pattern, pages_str)
+    spans = [m.span() for m in matches]
+    if len(spans) == 0:
+        return None  # no opinions
+    elif len(spans) == 1:  # match from end of match span to end of doc
+        retv.append(pages_str[spans[0][0]:])
+    else:  # match from end of span to beginning of next and then to end of doc
+        for i, s in enumerate(spans):
+            if i < len(spans) - 1:
+                retv.append(pages_str[s[0]:spans[i+1][0]])
+            else:
+                retv.append(pages_str[s[0]:])  
+    return retv
 
 
 def main() -> int:
@@ -202,7 +272,13 @@ def main() -> int:
     pgs = read_pdf(
         'https://www.supremecourt.gov/orders/courtorders/101821zor_4f14.pdf')  # buggy 
     create_order_summary(pgs, date, order_type)
-
+    
+    # add_document_delimiters(pgs)
+    # pgs_txt = add_begin_end_page_delimiter(pgs)
+    pgs_txt = '\n'.join([p.extract_text() for p in pgs])
+    opinions = get_opinions_from_orders(pgs_txt)
+    print(opinions)
+    
     return 0
 
 
