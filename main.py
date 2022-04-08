@@ -33,12 +33,12 @@ class Opinion():
     joiners: Optional[List[str]]
     text: str
 
-    def __init__(self, opinion_pg_ix, pages) -> None:
-        self.opinion_pg_ix = opinion_pg_ix
+    def __init__(self, opinion_text_raw) -> None:
+        # self.opinion_pg_ix = opinion_pg_ix
 
-        self.op_page = pages[0]
-        self.op_pages = pages
-
+        # self.op_page = pages[0]
+        # self.op_pages = pages
+        self.opinion_txt_raw = opinion_text_raw
         self.petitioner, self.respondent = self.get_op_parties()
         self.case_name = self.get_case_name()
         self.court_below = self.get_op_court()
@@ -46,18 +46,22 @@ class Opinion():
         self.court_below = self.get_op_court()
         self.text = self.get_opinion_text()
 
-    def remove_opinion_header(self, p):
+    def remove_opinion_header(self):
         """Return everything after header"""
-        return '\n'.join(p.extract_text().split('\n')[3:])
+        return self.opinion_txt_raw.split('\n')[3:]
 
     def get_opinion_author(self):
         """Returns author for opinion"""
-        return self.op_page.extract_text().split('\n')[2].split()[2].replace(',', '')
+        author_line = self.opinion_txt_raw.splitlines()[2]
+        if author_line.strip() == 'Per Curiam':
+            return 'Per Curiam'
+        else:
+            return self.opinion_txt_raw.splitlines()[2].split()[2].replace(',', '')
 
     def get_op_parties(self) -> Tuple[str, str]:
         pattern = 'SUPREME COURT OF THE UNITED STATES \n(.*) v. (.*)ON PETITION'
         petitioner, respondent = re.compile(pattern, re.DOTALL).search(
-            self.op_page.extract_text()).groups()
+            self.opinion_txt_raw).groups()
         petitioner = petitioner.replace('\n', '').replace('  ', ' ').strip()
         respondent = respondent.replace('\n', '').replace('  ', ' ').strip()
 
@@ -65,14 +69,15 @@ class Opinion():
 
     def get_op_court(self) -> str:
         pattern = '\nON.*TO THE (.*)No.'
-        return re.compile(pattern, re.DOTALL).search(self.op_page.extract_text()).groups()[0].replace('\n', '').replace('  ', ' ').strip()
+        return re.compile(pattern, re.DOTALL).search(self.opinion_txt_raw).groups()[0].replace('\n', '').replace('  ', ' ').strip()
 
     def get_case_name(self):
         return ' v. '.join([self.petitioner, self.respondent])
 
     def get_opinion_text(self) -> str:
-        text = ''.join([self.remove_opinion_header(p) for p in self.op_pages])
-        return self.clean_opinion_text(text)
+        #  TODO: Implement remove opinion headed for each page using text
+        # text = ''.join([self.remove_opinion_header(p) for p in self.op_pages])
+        return self.clean_opinion_text(self.opinion_txt_raw)
 
     def clean_opinion_text(self, text: str):
         """Clean up text"""
@@ -268,7 +273,7 @@ def main() -> int:
 
     # most recent order
     date, order_type, order_url = latest_order(div_orders)
-    pgs = read_pdf(order_url)
+    # pgs = read_pdf(order_url)
     pgs = read_pdf(
         'https://www.supremecourt.gov/orders/courtorders/101821zor_4f14.pdf')  # buggy 
     create_order_summary(pgs, date, order_type)
@@ -277,6 +282,9 @@ def main() -> int:
     # pgs_txt = add_begin_end_page_delimiter(pgs)
     pgs_txt = '\n'.join([p.extract_text() for p in pgs])
     opinions = get_opinions_from_orders(pgs_txt)
+    
+    op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
+    
     print(opinions)
     
     return 0
