@@ -258,6 +258,17 @@ def get_opinions_from_orders(pages_str: str) -> str:
                 retv.append(pages_str[s[0]:])  
     return retv
 
+def get_page_indices(pages: pdfplumber.PDF.pages) -> List[Tuple[int, int]]:
+    """Return start and end indices for each page."""
+    retv = []
+    start = 0
+    for pg in pages:
+        pg_len = len(pg.extract_text())
+        end = start + pg_len
+        retv.append((start, end))
+        start += pg_len
+    return retv
+        
 
 def main() -> int:
     url_orders = 'https://www.supremecourt.gov/orders/ordersofthecourt/21'
@@ -284,8 +295,8 @@ def main() -> int:
     opinions = get_opinions_from_orders(pgs_txt)
     
     op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
-    
-    print(opinions)
+    print(get_page_indices(pgs))
+    # print(op1.text)
     
     return 0
 
