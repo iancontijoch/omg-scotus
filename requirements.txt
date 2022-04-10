@@ -1,5 +1,6 @@
-requests
+autopep8
 beautifulsoup4
 dateparser
-autopep8
 pdfplumber
+pre-commit
+requests
