@@ -108,6 +108,7 @@ def latest_order(div: bs4.element.Tag):
 
     return (date, order_type, order_url)
 
+
 def read_pdf(url: str) -> pdfplumber.PDF.pages:
     # url = "https://www.supremecourt.gov/orders/courtorders/032822zor_f2bh.pdf"
     rq = requests.get(url)
@@ -170,7 +171,7 @@ def create_order_summary(pages: pdfplumber.PDF.pages, date: datetime.date, order
     print(order_type)
     for section in OrderSection:
         get_section_cases(pages, section)
-        
+
 
 def get_opinions_from_orders(pages_str: str) -> str:
     # TODO: change it to find individual opinions from opinions returned by the split method below
@@ -188,8 +189,9 @@ def get_opinions_from_orders(pages_str: str) -> str:
             if i < len(spans) - 1:
                 retv.append(pages_str[s[0]:spans[i+1][0]])
             else:
-                retv.append(pages_str[s[0]:])  
+                retv.append(pages_str[s[0]:])
     return retv
+
 
 def get_page_indices(pages: pdfplumber.PDF.pages) -> List[Tuple[int, int]]:
     """Return start and end indices for each page."""
@@ -215,8 +217,9 @@ def split_order_list_text(pages_text: str, page_indices: List[Tuple[int, int]]) 
     first_op_page = True
 
     for i, (start, end) in enumerate(page_indices):
-        segment = pages_text[start:end]      
-        if segment.splitlines()[-1].strip().isnumeric():  # ends w/ page num (not an opinion)
+        segment = pages_text[start:end]
+        # ends w/ page num (not an opinion)
+        if segment.splitlines()[-1].strip().isnumeric():
             segment = '\n'.join(segment.splitlines()[:-1])  # crop out page num
             order_text += segment
         else:
@@ -228,7 +231,7 @@ def split_order_list_text(pages_text: str, page_indices: List[Tuple[int, int]]) 
             opinion_text += segment
         full_text += segment
     return full_text, order_text, opinion_text
-        
+
 
 def main() -> int:
     url_orders = 'https://www.supremecourt.gov/orders/ordersofthecourt/21'
@@ -246,17 +249,17 @@ def main() -> int:
     date, order_type, order_url = latest_order(div_orders)
     pgs = read_pdf(order_url)
     pgs = read_pdf(
-        'https://www.supremecourt.gov/orders/courtorders/032122zor_n7ip.pdf') 
+        'https://www.supremecourt.gov/orders/courtorders/032122zor_n7ip.pdf')
     # create_order_summary(pgs, date, order_type)
-    
+
     pgs_txt = ''.join([p.extract_text() for p in pgs])
     # opinions = get_opinions_from_orders(pgs_txt)
-    
+
     # op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
     indices = get_page_indices(pgs)
 
     _, orders, opinions = split_order_list_text(pgs_txt, indices)
-    
+
     return 0
 
 
