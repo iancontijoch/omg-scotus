@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from enum import auto
 from enum import Enum
 from io import BytesIO
 from typing import TypeVar
 
 import bs4
-import dateparser
 import pdfplumber
 import requests
 from bs4 import BeautifulSoup
@@ -181,7 +181,7 @@ def latest_order(div: bs4.element.Tag) -> tuple[
     spans = div.contents[1].find_all('span')
 
     date = spans[0].text.strip()
-    date = require_non_none(dateparser.parse(date)).strftime('%Y-%m-%d')
+    date = datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d')
     order_type = OrderType.from_string(spans[1].text.strip())
     order_url = f"https://www.supremecourt.gov/{spans[1].contents[0]['href']}"
 
