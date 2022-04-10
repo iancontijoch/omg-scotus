@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime
 from distutils.command.clean import clean
 import bs4
@@ -8,9 +9,24 @@ import dateparser
 import pdfplumber
 import re
 from io import BytesIO
-from typing import List, Optional, Tuple, Any, Union
+from typing import List, Optional, Tuple, Any, Union, Dict, Type
 from enum import Enum, auto
+from pprint import pprint
 
+
+class OrderType(Enum):
+    ORDER_LIST = auto()
+    MISCELLANEOUS_ORDER = auto()
+
+    @staticmethod
+    def from_string(label):
+        if label.upper() == 'MISCELLANOUS ORDER':
+            return OrderType.MISCELLANEOUS_ORDER
+        elif label.upper() == 'ORDER LIST':
+            return OrderType.ORDER_LIST
+    
+    def __str__(self):
+        return self.name.replace('_', ' ')
 
 class OrderSection(Enum):
     CERTIORARI_SUMMARY_DISPOSITIONS = auto()
@@ -20,6 +36,31 @@ class OrderSection(Enum):
     HABEAS_CORPUS_DENIED = auto()
     MANDAMUS_DENIED = auto()
     REHEARINGS_DENIED = auto()
+
+    def __str__(self):
+        if self.name == 'CERTIORARI_SUMMARY_DISPOSITIONS':
+            return 'CERTIORARI -- SUMMARY DISPOSITIONS'
+        else:
+            return self.name.replace('_', ' ').strip()
+
+    @staticmethod
+    def from_string(label):
+        if label in ('CERTIORARI -- SUMMARY DISPOSITIONS', 'CERTIORARI -- SUMMARY DISPOSITION'):
+            return OrderSection.CERTIORARI_SUMMARY_DISPOSITIONS
+        elif label in ('ORDERS IN PENDING CASES', 'ORDER IN PENDING CASE'):
+            return OrderSection.ORDERS_IN_PENDING_CASES
+        elif label == 'CERTIORARI GRANTED':
+            return OrderSection.CERTIORARI_GRANTED
+        elif label == 'CERTIORARI DENIED':
+            return OrderSection.CERTIORARI_DENIED
+        elif label == 'HABEAS CORPUS DENIED':
+            return OrderSection.HABEAS_CORPUS_DENIED
+        elif label == 'MANDAMUS DENIED':
+            return OrderSection.MANDAMUS_DENIED
+        elif label in ('REHEARINGS DENIED', 'REHEARING DENIED'):
+            return OrderSection.REHEARINGS_DENIED
+        else:
+            raise NotImplementedError
 
 
 class Opinion():
@@ -103,7 +144,7 @@ def latest_order(div: bs4.element.Tag):
 
     date = spans[0].text.strip()
     date = dateparser.parse(date).strftime('%Y-%m-%d')
-    order_type = spans[1].text.strip()
+    order_type = OrderType.from_string(spans[1].text.strip())
     order_url = f"https://www.supremecourt.gov/{spans[1].contents[0]['href']}"
 
     return (date, order_type, order_url)
@@ -117,11 +158,12 @@ def read_pdf(url: str) -> pdfplumber.PDF.pages:
 
 
 def get_case_num_and_name(txt: str) -> str:
-    """Return case numbers/names XXX-XXXX   BOB v. ALICE or IN RE BOB for a given text."""
+    """Return case numbers/names XXX-XXXX   
+    e.g. BOB v. ALICE or IN RE BOB"""
 
-    #  123-4567 or 12A34  BOB v. ALICE or IN RE BOB
-    pattern = r'(\d\d(?:-|\w)\d+)\s+([\w\,\.,\(,\),\', ]+V. [\w\,\.,\' ]+\n)|(\d\d(?:-|\w)\d+)\s+(IN RE [\w\,\.,\(,\), ]+) \n'
-    matches = re.findall(pattern, txt)
+    #  123-4567, 12A34, 123, ORIG., IN RE .... BOB V. ALICE
+    pattern = r'(\d+.*?\d|\d+.*?ORIG.)\s+(.*?V.*?$|IN RE.*?$)'
+    matches = re.findall(pattern=pattern, string=txt, flags=re.M)
     return matches
 
 
@@ -131,66 +173,25 @@ def print_section_cases(section_name: str, cases: Union[list, str]) -> None:
     if isinstance(cases, list):
         num_cases = len(cases)
         cases = '\n'.join(['  '.join(m).strip() for m in cases])
-    print(f"\n{section_name}: {num_cases} case{(num_cases > 1)*'s'}\n{'-'*72}\n{cases}\n{'-'*72}\n")
+    print(f"\n{section_name}: {num_cases} case{(num_cases > 1 or cases == 'No cases.')*'s'}\n{'-'*72}\n{cases}\n{'-'*72}\n")
 
 
-def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> None:
+def get_section_cases(section_matches: Dict[Tuple[str, str]]) -> None:
     """Return cases for each section of the Order List"""
-    # TODO: change to detect sections from orders using the titles
 
-    # stringify enum by replacing _ with space
-    current_section = section.name.replace('_', ' ')
-    txt = add_begin_end_page_delimiter(pages)
-    # pattern to get the text in each section (w/ header ______ GRANTED/DENIED)
-    try:
-        if section is OrderSection.CERTIORARI_SUMMARY_DISPOSITIONS:
-            # name separately because of the hyphens
-            current_section = 'CERTIORARI -- SUMMARY DISPOSITIONS'
-            # next section doesn't begin with ____ GRANTED/DENIED
-            suffix = r'ORDERS +IN +PENDING +CASES'
+    for section in OrderSection:
+        section_text = section_matches[section]
+        if section_text is None:
+            section_cases = 'No cases.'
         else:
-            suffix = r'\w+ (DENIED|GRANTED)'
-        # allow for multiple spaces between words (due to PDF import noise)
-        pattern = fr'{current_section.replace(" ", " +")}(.*?){suffix}'
-    except ValueError:  # this won't be the case anymore. Remove.
-        #  TODO Detect whether section is the last section and modify regex to bookend it.
-        # this only applies when there's an opinion. Need to fix.
-        pattern = r'REHEARINGS DENIED(.*)END_PAGE:'
-    try:
-        section_txt = re.compile(pattern, re.DOTALL).search(txt).groups()[0]
-        section_cases = get_case_num_and_name(section_txt)
-    except AttributeError:  # section doesn't appear in Order List
-        section_cases = "No Orders"
-    finally:
-        print_section_cases(current_section, section_cases)
+            section_cases = get_case_num_and_name(section_text)
+        print_section_cases(str(section), section_cases)
 
-
-def create_order_summary(pages: pdfplumber.PDF.pages, date: datetime.date, order_type: str) -> None:
+def create_order_summary(section_matches: Dict[Tuple[str, str]], date: datetime.date, order_type: str) -> None:
     print("\n\n--------ORDER LIST SUMMARY--------")
     print(date)
     print(order_type)
-    for section in OrderSection:
-        get_section_cases(pages, section)
-
-
-def get_opinions_from_orders(pages_str: str) -> str:
-    # TODO: change it to find individual opinions from opinions returned by the split method below
-    """Return text for all opinions included in the order list."""
-    retv = []
-    pattern = r' +Cite as: +\d\d\d U. S. ____ \(\d\d\d\d\) +1'
-    matches = re.finditer(pattern, pages_str)
-    spans = [m.span() for m in matches]
-    if len(spans) == 0:
-        return None  # no opinions
-    elif len(spans) == 1:  # match from end of match span to end of doc
-        retv.append(pages_str[spans[0][0]:])
-    else:  # match from end of span to beginning of next and then to end of doc
-        for i, s in enumerate(spans):
-            if i < len(spans) - 1:
-                retv.append(pages_str[s[0]:spans[i+1][0]])
-            else:
-                retv.append(pages_str[s[0]:])
-    return retv
+    get_section_cases(section_matches)
 
 
 def get_page_indices(pages: pdfplumber.PDF.pages) -> List[Tuple[int, int]]:
@@ -207,16 +208,41 @@ def get_page_indices(pages: pdfplumber.PDF.pages) -> List[Tuple[int, int]]:
     return retv
 
 
-def split_order_list_text(pages_text: str, page_indices: List[Tuple[int, int]]) -> str:
+def get_order_section_matches(order_text: str) -> Dict[str, Tuple[str, str]]:
+    """Return list of (Order Section, Order Section Text) for Order List"""
+    retv = {}
+    # regex pattern looks text between section headers and between last section header and EOF
+    pattern = r'(CERTIORARI +-- +SUMMARY +DISPOSITIONS*|ORDERS* +IN +PENDING +CASES*|CERTIORARI +GRANTED|CERTIORARI +DENIED|HABEAS +CORPUS +DENIED|MANDAMUS +DENIED|REHEARINGS* +DENIED)(.*?(?=CERTIORARI +-- +SUMMARY +DISPOSITIONS*|ORDERS* +IN +PENDING +CASES*|CERTIORARI +GRANTED|CERTIORARI +DENIED|HABEAS +CORPUS +DENIED|MANDAMUS +DENIED|REHEARINGS* +DENIED)|.*$)'
+    matches = re.finditer(pattern=pattern, string=order_text, flags=re.DOTALL)
+
+    for m in matches:
+        section_title, section_content = ' '.join(
+            m.groups()[0].split()), m.groups()[1]  # remove whitespace noise
+
+        retv[OrderSection.from_string(section_title)] = section_content
+
+    for section in OrderSection:
+        if section not in retv:
+            retv[section] = None
+
+    return retv
+
+
+def split_order_list_text(pages_text: str, page_indices: List[Tuple[int, int]], order_type: OrderType) -> str:
     """
     Split Opinion List into orders and opinions and remove page numbers from orders and 
     headers from opinions.
     """
 
     full_text, order_text, opinion_text = ('', '', '')
+
+    if order_type is OrderType.MISCELLANEOUS_ORDER and len(page_indices) == 1:
+        start, end = page_indices[0]
+        full_text, order_text = pages_text[start:end], pages_text[start:end]
+
     first_op_page = True
 
-    for i, (start, end) in enumerate(page_indices):
+    for start, end in page_indices:
         segment = pages_text[start:end]
         # ends w/ page num (not an opinion)
         if segment.splitlines()[-1].strip().isnumeric():
@@ -249,8 +275,11 @@ def main() -> int:
     date, order_type, order_url = latest_order(div_orders)
     pgs = read_pdf(order_url)
     pgs = read_pdf(
-        'https://www.supremecourt.gov/orders/courtorders/032122zor_n7ip.pdf')
-    # create_order_summary(pgs, date, order_type)
+        'https://www.supremecourt.gov/orders/courtorders/102721zr_8o6a.pdf')
+    order_type = OrderType.MISCELLANEOUS_ORDER
+
+    # TODO: In chambers orders (https://www.supremecourt.gov/orders/courtorders/080421zr_lkgn.pdf)
+
 
     pgs_txt = ''.join([p.extract_text() for p in pgs])
     # opinions = get_opinions_from_orders(pgs_txt)
@@ -258,7 +287,12 @@ def main() -> int:
     # op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
     indices = get_page_indices(pgs)
 
-    _, orders, opinions = split_order_list_text(pgs_txt, indices)
+    _, orders, opinions = split_order_list_text(pgs_txt, indices, order_type)
+
+
+    order_section_matches = get_order_section_matches(orders)
+
+    create_order_summary(order_section_matches, date, order_type)
 
     return 0
 
