@@ -108,75 +108,6 @@ def latest_order(div: bs4.element.Tag):
 
     return (date, order_type, order_url)
 
-
-def detect_opinions(pages: List[str]) -> int:
-    for i, page in enumerate(pages):
-        if page.extract_text().split('\n')[0][:10] == '  Cite as:':
-            return i
-    return
-
-def is_opinion(lines: List[str]) -> bool:
-    cond1 = lines[0][:10] == '  Cite as:' 
-    if cond1: 
-        try:
-            cond2 = ''.join(lines)[0][-3:].strip() == '1'
-        except IndexError:
-            breakpoint()
-        return cond1 and cond2
-    return cond1
-
-def is_order(lines: List[str]) -> bool:
-    return lines[-1].isnumeric()
-
-def add_begin_end_page_delimiter(pages: pdfplumber.PDF.pages) -> str:
-    retv = []
-    for page in pages:
-        lines = page.extract_text().splitlines()
-        if page.page_number == 1:
-            retv.append('\nBEG_DOC\n')            
-        retv.append('\nBEG_PAGE\n')
-        retv.extend(lines)
-        retv.append('\nEND_PAGE\n')
-        if page.page_number == len(pages):
-            retv.append('\nEND_DOC')
-        
-    return '\n'.join(retv)
-
-def add_document_delimiters(pages: pdfplumber.PDF.pages) -> str:
-    """Add BEG/END page, BEG/END orders, BEG/END opinions 
-    delimiters for easy regex."""
-
-    retv = []
-
-    for i, page in enumerate(pages):
-        lines = page.extract_text().splitlines()
-        if page.page_number == 1 and is_order(lines):
-            retv.append('BEG_ORDERS')
-            retv.extend(lines)
-        elif all((page.page_number < len(pages) -2, 
-                 is_order(lines), 
-                 is_opinion(pages[i+1].extract_text().splitlines()))):
-            retv.extend(lines)
-            retv.append('END_ORDERS')
-            retv.append('BEG_OPINION')
-        elif all(
-            (page.page_number < len(pages) - 1,
-            is_opinion(lines),
-            is_opinion(pages[i+1].extract_text().splitlines()))
-        ):   
-            retv.append('END_OPINION')
-            retv.append('BEG_OPINION')
-            retv.extend(lines)
-        elif page.page_number == len(pages) and is_order(lines):  # last page
-            retv.extend(lines)
-            retv.append('END_ORDERS')
-        elif page.page_number == len(pages) and is_opinion(lines):
-            retv.extend(lines)
-            retv.append('END_OPINION')
-    
-    return '\n'.join(retv)        
-        
-
 def read_pdf(url: str) -> pdfplumber.PDF.pages:
     # url = "https://www.supremecourt.gov/orders/courtorders/032822zor_f2bh.pdf"
     rq = requests.get(url)
@@ -204,6 +135,7 @@ def print_section_cases(section_name: str, cases: Union[list, str]) -> None:
 
 def get_section_cases(pages: pdfplumber.PDF.pages, section: OrderSection) -> None:
     """Return cases for each section of the Order List"""
+    # TODO: change to detect sections from orders using the titles
 
     # stringify enum by replacing _ with space
     current_section = section.name.replace('_', ' ')
@@ -241,6 +173,7 @@ def create_order_summary(pages: pdfplumber.PDF.pages, date: datetime.date, order
         
 
 def get_opinions_from_orders(pages_str: str) -> str:
+    # TODO: change it to find individual opinions from opinions returned by the split method below
     """Return text for all opinions included in the order list."""
     retv = []
     pattern = r' +Cite as: +\d\d\d U. S. ____ \(\d\d\d\d\) +1'
@@ -262,12 +195,39 @@ def get_page_indices(pages: pdfplumber.PDF.pages) -> List[Tuple[int, int]]:
     """Return start and end indices for each page."""
     retv = []
     start = 0
+    full_txt = ''.join([p.extract_text() for p in pages])
     for pg in pages:
         pg_len = len(pg.extract_text())
         end = start + pg_len
+        assert full_txt[start:end] == pg.extract_text()
         retv.append((start, end))
         start += pg_len
     return retv
+
+
+def split_order_list_text(pages_text: str, page_indices: List[Tuple[int, int]]) -> str:
+    """
+    Split Opinion List into orders and opinions and remove page numbers from orders and 
+    headers from opinions.
+    """
+
+    full_text, order_text, opinion_text = ('', '', '')
+    first_op_page = True
+
+    for i, (start, end) in enumerate(page_indices):
+        segment = pages_text[start:end]      
+        if segment.splitlines()[-1].strip().isnumeric():  # ends w/ page num (not an opinion)
+            segment = '\n'.join(segment.splitlines()[:-1])  # crop out page num
+            order_text += segment
+        else:
+            # omit header info in opinions
+            segment = '\n'.join(segment.splitlines()[3:])
+            if first_op_page:  # transition from orders to opinions has a missing space right before, readd
+                segment = '\n' + segment
+                first_op_page = False
+            opinion_text += segment
+        full_text += segment
+    return full_text, order_text, opinion_text
         
 
 def main() -> int:
@@ -284,19 +244,18 @@ def main() -> int:
 
     # most recent order
     date, order_type, order_url = latest_order(div_orders)
-    # pgs = read_pdf(order_url)
+    pgs = read_pdf(order_url)
     pgs = read_pdf(
-        'https://www.supremecourt.gov/orders/courtorders/101821zor_4f14.pdf')  # buggy 
-    create_order_summary(pgs, date, order_type)
+        'https://www.supremecourt.gov/orders/courtorders/032122zor_n7ip.pdf') 
+    # create_order_summary(pgs, date, order_type)
     
-    # add_document_delimiters(pgs)
-    # pgs_txt = add_begin_end_page_delimiter(pgs)
-    pgs_txt = '\n'.join([p.extract_text() for p in pgs])
-    opinions = get_opinions_from_orders(pgs_txt)
+    pgs_txt = ''.join([p.extract_text() for p in pgs])
+    # opinions = get_opinions_from_orders(pgs_txt)
     
-    op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
-    print(get_page_indices(pgs))
-    # print(op1.text)
+    # op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
+    indices = get_page_indices(pgs)
+
+    _, orders, opinions = split_order_list_text(pgs_txt, indices)
     
     return 0
 
