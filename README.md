@@ -1,2 +1,2 @@
 # omg-scotus
-SCOTUS updates
+SCOTUS updates 🔔️
