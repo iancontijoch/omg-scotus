@@ -143,10 +143,7 @@ def split_order_list_text(
                         :-1
                     ],
                 )  # crop out page num
-                if order_text:
-                    order_text += segment
-                else:
-                    order_text = segment
+                order_text = order_text + segment if order_text else segment
             else:
                 # omit header info in opinions
                 segment = '\n'.join(segment.splitlines()[3:])
@@ -154,25 +151,22 @@ def split_order_list_text(
                     # transition from orders to opinions missing space before
                     segment = '\n' + segment  # readd
                     first_op_page = False
-                if opinion_text:
-                    opinion_text += segment
-                else:
-                    opinion_text = segment
-            if full_text:
-                full_text += segment
-            else:
-                full_text = segment
+                # opinion_text = (
+                #     opinion_text + segment if opinion_text
+                #     else segment
+                # )
+            full_text = full_text + segment if full_text else segment
     return full_text, order_text, opinion_text, stays_text
 
 
 def main() -> int:
-    fetcher = Fetcher(
-        url=(
-            'https://www.supremecourt.gov'
-            + '/orders/courtorders/011422zr_21o2.pdf'
-        ),
-    )
-    # fetcher = Fetcher()
+    # fetcher = Fetcher(
+    #     url=(
+    #         'https://www.supremecourt.gov'
+    #         + '/orders/courtorders/011422zr_21o2.pdf'
+    #     ),
+    # )
+    fetcher = Fetcher()
     pgs = fetcher.read_pdf()
 
     pgs_txt = ''.join([p.extract_text() for p in pgs])
@@ -182,8 +176,8 @@ def main() -> int:
     # op1, op2 = Opinion(opinions[0]), Opinion(opinions[1])
     indices = get_page_indices(pgs)
 
-    # order_date, order_type, order_url = fetcher.get_latest_order_data()
-    order_date, order_type, order_url = fetcher.get_order_data()
+    order_date, order_type, order_url = fetcher.get_latest_order_data()
+    # order_date, order_type, order_url = fetcher.get_order_data()
 
     _, orders, opinions, stays = split_order_list_text(
         pgs_txt, indices, order_type,
