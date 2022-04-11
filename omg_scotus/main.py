@@ -143,7 +143,10 @@ def split_order_list_text(
                         :-1
                     ],
                 )  # crop out page num
-                order_text = order_text + segment if order_text else segment
+                if order_text:
+                    order_text += segment
+                else:
+                    order_text = segment
             else:
                 # omit header info in opinions
                 segment = '\n'.join(segment.splitlines()[3:])
@@ -151,11 +154,14 @@ def split_order_list_text(
                     # transition from orders to opinions missing space before
                     segment = '\n' + segment  # readd
                     first_op_page = False
-                # opinion_text = (
-                #     opinion_text + segment if opinion_text
-                #     else segment
-                # )
-            full_text = full_text + segment if full_text else segment
+                if opinion_text:
+                    opinion_text += segment
+                else:
+                    opinion_text = segment
+                if full_text:
+                    full_text += segment
+                else:
+                    full_text = segment
     return full_text, order_text, opinion_text, stays_text
 
 
