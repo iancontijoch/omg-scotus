@@ -32,7 +32,8 @@ class Fetcher():
     ) -> tuple[str, OrderType, str]:
         date = spans[0].text.strip()
         date = datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d')
-        order_type = OrderType.from_string(spans[1].text.strip())
+        order_title = spans[1].text.strip()
+        order_type = OrderType.from_string(order_title)
         order_url = (
             f'https://www.supremecourt.gov/'
             f"{spans[1].contents[0]['href']}"

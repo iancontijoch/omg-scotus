@@ -52,11 +52,20 @@ def create_order_summary(
     section_matches: dict[OrderListSection, str | None],
     date: str,
     order_type: OrderType,
+    order_text: str | None,
 ) -> None:
     print('\n\n--------ORDER LIST SUMMARY--------')
     print(date)
     print(order_type)
-    get_section_cases(section_matches)
+    if order_type in (
+        OrderType.RULES_OF_APPELLATE_PROCEDURE,
+        OrderType.RULES_OF_BANKRUPTCY_PROCEDURE,
+        OrderType.RULES_OF_CIVIL_PROCEDURE,
+        OrderType.RULES_OF_CRIMINAL_PROCEDURE,
+    ):
+        print(order_text)
+    else:
+        get_section_cases(section_matches)
 
 
 def get_page_indices(pages: pdfplumber.PDF.pages) -> list[tuple[int, int]]:
@@ -132,6 +141,17 @@ def split_order_list_text(
             stays_text = pages_text[start:end]
         else:
             order_text = pages_text[start:end]
+    elif order_type in (
+        OrderType.RULES_OF_APPELLATE_PROCEDURE,
+        OrderType.RULES_OF_BANKRUPTCY_PROCEDURE,
+        OrderType.RULES_OF_CIVIL_PROCEDURE,
+        OrderType.RULES_OF_CRIMINAL_PROCEDURE,
+    ):
+        match = (
+            re.compile(pattern='(ORDERED:.*)', flags=re.DOTALL)
+            .search(pages_text)
+        )
+        order_text = require_non_none(match).groups()[0]
     else:
         first_op_page = True
         for start, end in page_indices:
@@ -190,11 +210,9 @@ def main() -> int:
     )
 
     order_section_matches = get_order_section_matches(require_non_none(orders))
+    create_order_summary(order_section_matches, order_date, order_type, orders)
 
-    # if stays != '':
-    #     order_section_matches =
-
-    create_order_summary(order_section_matches, order_date, order_type)
+    print('hash', fetcher.detect_changes())
 
     return 0
 
