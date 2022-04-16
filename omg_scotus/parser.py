@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
-from pprint import pprint
 from typing import Any
 
 from omg_scotus.fetcher import Fetcher
-from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
+from omg_scotus.order_list_section import OrderList
 
 
 class ParserStrategy(ABC):
@@ -18,6 +17,9 @@ class ParserStrategy(ABC):
 
     @abstractmethod
     def parse(self) -> str | dict[str, str]: pass
+
+    @abstractmethod
+    def get_sections(self) -> OrderList | None: pass
 
 
 class OrderListParserStrategy(ParserStrategy):
@@ -56,6 +58,10 @@ class OrderListParserStrategy(ParserStrategy):
                     retv['opinion_text'] = segment
         return retv
 
+    def get_sections(self) -> OrderList:
+        order_list = OrderList(text=self.parse()['order_text'])
+        return order_list
+
 
 class MiscOrderParserStrategy(ParserStrategy):
 
@@ -67,6 +73,9 @@ class MiscOrderParserStrategy(ParserStrategy):
             retv += segment
         return retv
 
+    def get_sections(self) -> None:
+        pass
+
 
 class StayOrderParserStrategy(ParserStrategy):
 
@@ -77,6 +86,9 @@ class StayOrderParserStrategy(ParserStrategy):
             segment = self.msg['pdf_text'][start:end]
             retv += segment
         return retv
+
+    def get_sections(self) -> None:
+        pass
 
 
 class Parser:
@@ -124,11 +136,19 @@ class Parser:
         ps = self.parser_strategy
         return ps.parse()
 
+    def get_sections(self) -> OrderList | None:
+        ps = self.parser_strategy
+        return ps.get_sections()
+
 
 if __name__ == '__main__':
-    fr = Fetcher(stream=Stream.ORDERS)
+    fr = Fetcher.from_url(
+        url=(
+            'https://www.supremecourt.gov/'
+            + 'orders/courtorders/040422zor_4f14.pdf'
+        ),
+    )
 
-    pprint(fr.get_payload())
     pr = Parser(fr.get_payload())
     parsed_data = pr.parse()
-    pprint(parsed_data)
+    ol = pr.get_sections()
