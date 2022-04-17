@@ -78,3 +78,7 @@ def is_stay_order(order_title: str, pdf: pdfplumber.pdf.PDF) -> bool:
         .split(),
     ) == 'Supreme Court of the United States'
     return cond1 and cond2 and cond3
+
+
+def remove_extra_whitespace(s: str) -> str:
+    return ' '.join(s.split())

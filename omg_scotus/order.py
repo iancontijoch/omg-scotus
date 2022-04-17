@@ -2,22 +2,8 @@ from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
-from enum import auto
-from enum import Enum
 
-
-class RulesType(Enum):
-    RULES_OF_APPELLATE_PROCEDURE = auto()
-    RULES_OF_BANKRUPTCY_PROCEDURE = auto()
-    RULES_OF_CIVIL_PROCEDURE = auto()
-    RULES_OF_CRIMINAL_PROCEDURE = auto()
-
-
-class OrderType(Enum):
-    ORDER_LIST = auto()
-    MISCELLANEOUS_ORDER = auto()
-    STAY_ORDER = auto()
-    RULES_ORDER = auto()
+from omg_scotus._enums import OrderType
 
 
 class OrderCreator(ABC):

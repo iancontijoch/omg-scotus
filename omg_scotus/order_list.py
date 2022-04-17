@@ -1,42 +1,10 @@
 from __future__ import annotations
 
 import re
-from enum import auto
-from enum import Enum
 
+from omg_scotus._enums import OrderListSectionType
 from omg_scotus.case import Case
-
-
-class OrderListSectionType(Enum):
-    CERTIORARI_SUMMARY_DISPOSITIONS = auto()
-    ORDERS_IN_PENDING_CASES = auto()
-    CERTIORARI_GRANTED = auto()
-    CERTIORARI_DENIED = auto()
-    HABEAS_CORPUS_DENIED = auto()
-    MANDAMUS_DENIED = auto()
-    REHEARINGS_DENIED = auto()
-
-    @staticmethod
-    def from_string(label: str) -> OrderListSectionType:
-        if label in (
-            'CERTIORARI -- SUMMARY DISPOSITIONS',
-            'CERTIORARI -- SUMMARY DISPOSITION',
-        ):
-            return OrderListSectionType.CERTIORARI_SUMMARY_DISPOSITIONS
-        elif label in ('ORDERS IN PENDING CASES', 'ORDER IN PENDING CASE'):
-            return OrderListSectionType.ORDERS_IN_PENDING_CASES
-        elif label == 'CERTIORARI GRANTED':
-            return OrderListSectionType.CERTIORARI_GRANTED
-        elif label == 'CERTIORARI DENIED':
-            return OrderListSectionType.CERTIORARI_DENIED
-        elif label == 'HABEAS CORPUS DENIED':
-            return OrderListSectionType.HABEAS_CORPUS_DENIED
-        elif label == 'MANDAMUS DENIED':
-            return OrderListSectionType.MANDAMUS_DENIED
-        elif label in ('REHEARINGS DENIED', 'REHEARING DENIED'):
-            return OrderListSectionType.REHEARINGS_DENIED
-        else:
-            raise NotImplementedError
+from omg_scotus.opinion import Opinion
 
 
 class OrderListSection:
@@ -77,19 +45,22 @@ class OrderListSection:
 class OrderList:
     text: str
     sections: list[OrderListSection]
+    opinions: list[Opinion]
 
-    def __init__(self, text: str):
-        self.text = text
+    def __init__(self, orders_text: str, opinions_text: str | None):
+        self.orders_text = orders_text
+        self.opinions_text = opinions_text
         self.title = self.get_title()
         self.date = self.get_date()
-        self.sections = []
-        self.set_sections()
+        self.sections, self.opinions = [], []
+        self.get_sections()
+        self.get_opinions()
 
     def get_title(self) -> str:
-        return self.text.splitlines()[1]
+        return self.orders_text.splitlines()[1]
 
     def get_date(self) -> str:
-        return self.text.splitlines()[4]
+        return self.orders_text.splitlines()[4]
 
     def __str__(self) -> str:
         """Return string representation of OrderList."""
@@ -98,7 +69,7 @@ class OrderList:
         s += '\n'.join([str(s) for s in self.sections])
         return s
 
-    def set_sections(self) -> None:
+    def get_sections(self) -> None:
         """Create and append OrderListSections for OrderList."""
         # regex pattern looks text between section headers and between
         # last section header and EOF
@@ -112,7 +83,7 @@ class OrderList:
         )
         matches = re.finditer(
             pattern=pattern,
-            string=self.text, flags=re.DOTALL,
+            string=self.orders_text, flags=re.DOTALL,
         )
 
         for m in matches:
@@ -128,3 +99,24 @@ class OrderList:
                 text=section_content,
             )
             self.sections.append(section)
+
+    def get_opinions(self) -> None:
+        """Create and append opinions embedded in OrderList."""
+        # regex pattern looks for text between
+        # SUPREME COURT OF THE UNITED STATES
+        if not self.opinions_text:
+            return None
+
+        pattern = (
+            r'(SUPREME COURT OF THE UNITED STATES\s\s)(.*?(?=SUPREME COURT '
+            r'OF THE UNITED STATES\s\s)|.*$)'
+        )
+        matches = re.finditer(
+            pattern=pattern,
+            string=self.opinions_text,
+            flags=re.DOTALL,
+        )
+
+        for m in matches:
+            opinion_text = self.opinions_text[m.span()[0]: m.span()[1]]
+            self.opinions.append(Opinion(opinion_text=opinion_text))

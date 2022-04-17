@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
+from collections import defaultdict
 from typing import Any
 
 from omg_scotus.fetcher import Fetcher
 from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
-from omg_scotus.order_list_section import OrderList
+from omg_scotus.helpers import require_non_none
+from omg_scotus.order_list import OrderList
 
 
 class ParserStrategy(ABC):
@@ -16,15 +18,15 @@ class ParserStrategy(ABC):
         self.msg = msg
 
     @abstractmethod
-    def parse(self) -> str | dict[str, str]: pass
+    def parse(self) -> str | defaultdict[str, str | None]: pass
 
     @abstractmethod
-    def get_sections(self) -> OrderList | None: pass
+    def get_object(self) -> Any: pass
 
 
 class OrderListParserStrategy(ParserStrategy):
 
-    def parse(self) -> dict[str, str]:
+    def parse(self) -> defaultdict[str, str | None]:
         """ Return dict of Order Text and Opinion Text.
 
         Order Lists include Orders, which are formatted with page
@@ -32,7 +34,7 @@ class OrderListParserStrategy(ParserStrategy):
         relating to orders, which have the same format as opinions. This
         method extracts both.
         """
-        retv: dict[str, str] = {}
+        retv: defaultdict[str, str | None] = defaultdict(lambda: None)
         first_opinion_page = True
 
         for start, end in self.msg['pdf_page_indices']:
@@ -41,10 +43,10 @@ class OrderListParserStrategy(ParserStrategy):
             if segment.splitlines()[-1].strip().isnumeric():
                 # ends w/ page num, so it's an order page
                 segment = '\n'.join(segment.splitlines()[:-1])  # crop Pg Num
-                if 'order_text' in retv:
-                    retv['order_text'] += segment
+                if 'orders_text' in retv:
+                    retv['orders_text'] += segment
                 else:
-                    retv['order_text'] = segment
+                    retv['orders_text'] = segment
             else:
                 # it's an opinion page
                 segment = '\n'.join(segment.splitlines()[3:])  # omit header
@@ -52,14 +54,20 @@ class OrderListParserStrategy(ParserStrategy):
                     # transition from orders to opinions missing space before
                     segment = '\n' + segment  # readd
                     first_opinion_page = False
-                if 'opinion_text' in retv:
-                    retv['opinion_text'] += segment
+                if 'opinions_text' in retv:
+                    retv['opinions_text'] += segment
                 else:
-                    retv['opinion_text'] = segment
+                    retv['opinions_text'] = segment
+
         return retv
 
-    def get_sections(self) -> OrderList:
-        order_list = OrderList(text=self.parse()['order_text'])
+    def get_object(self) -> OrderList:
+        """Create OrderList."""
+        parsed_dict = self.parse()
+        order_list = OrderList(
+            orders_text=require_non_none(parsed_dict['orders_text']),
+            opinions_text=parsed_dict['opinions_text'],
+        )
         return order_list
 
 
@@ -73,7 +81,7 @@ class MiscOrderParserStrategy(ParserStrategy):
             retv += segment
         return retv
 
-    def get_sections(self) -> None:
+    def get_object(self) -> Any:
         pass
 
 
@@ -87,7 +95,7 @@ class StayOrderParserStrategy(ParserStrategy):
             retv += segment
         return retv
 
-    def get_sections(self) -> None:
+    def get_object(self) -> None:
         pass
 
 
@@ -131,24 +139,30 @@ class Parser:
         else:
             raise NotImplementedError
 
-    def parse(self) -> dict[str, str] | str:
+    def parse(self) -> str | defaultdict[str, str | None]:
         """Use strategy parser."""
         ps = self.parser_strategy
         return ps.parse()
 
-    def get_sections(self) -> OrderList | None:
+    def get_object(self) -> Any:
         ps = self.parser_strategy
-        return ps.get_sections()
+        return ps.get_object()
 
 
 if __name__ == '__main__':
     fr = Fetcher.from_url(
         url=(
             'https://www.supremecourt.gov/'
-            + 'orders/courtorders/040422zor_4f14.pdf'
+            + 'orders/courtorders/022822zor_o759.pdf'
         ),
     )
 
     pr = Parser(fr.get_payload())
     parsed_data = pr.parse()
-    ol = pr.get_sections()
+    ol = pr.get_object()
+
+    if ol.opinions:
+        for opinion in ol.opinions:
+            print(opinion.case_name)
+            print(opinion.author)
+            print(opinion.joiners)

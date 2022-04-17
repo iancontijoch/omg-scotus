@@ -2,54 +2,57 @@ from __future__ import annotations
 
 import re
 
-import pdfplumber
-
+from omg_scotus._enums import Justice
+from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import require_non_none
 
 
 class Opinion():
-    opinion_pg_ix: int
-    op_pages: list[pdfplumber.pdf.Page]
+    opinion_text: str
     case_name: str
+    case_number: str
     petitioner: str
     respondent: str
     court_below: str
-    author: str
-    joiners: list[str] | None
+    author: Justice
+    joiners: list[Justice] | None
     text: str
 
-    def __init__(self, opinion_text_raw: str) -> None:
+    def __init__(self, opinion_text: str) -> None:
         """Init Opinion."""
-        self.opinion_txt_raw = opinion_text_raw
-        self.petitioner, self.respondent = self.get_op_parties()
+        self.opinion_text = opinion_text
+        self.petitioner, self.respondent = self.get_parties()
         self.case_name = self.get_case_name()
-        self.court_below = self.get_op_court()
-        self.author = self.get_opinion_author()
-        self.court_below = self.get_op_court()
-        self.text = self.get_opinion_text()
+        self.case_number = self.get_case_number()
+        self.court_below = self.get_court()
+        self.get_opinion_author()
 
-    def get_opinion_author(self) -> str:
-        """Returns author for opinion"""
-        author_line = self.opinion_txt_raw.splitlines()[2]
-        if author_line.strip() == 'Per Curiam':
-            return 'Per Curiam'
-        else:
-            return (
-                self.opinion_txt_raw
-                .splitlines()[2]
-                .split()[2]
-                .replace(',', '')
-            )
-
-    def get_op_parties(self) -> tuple[str, str]:
+    def get_opinion_author(self) -> None:
+        """Return opinion author."""
+        # regex matches first occurrence of Justice Name/Chief Justice/Curiam
         pattern = (
-            'SUPREME COURT OF THE UNITED STATES '
-            + '\n(.*) v. (.*)ON PETITION'
+            r'JUSTICE\s+\w+|CHIEF JUSTICE|PER CURIAM'
+        )
+        match = re.compile(pattern).findall(self.opinion_text)
+        self.author = Justice.from_string(remove_extra_whitespace(match[0]))
+        self.joiners = [
+            Justice.from_string(
+                remove_extra_whitespace(
+                    m,
+                ),
+            ) for m in match[1:]
+        ] if len(match) > 1 else None
+
+    def get_parties(self) -> tuple[str, str]:
+        """Get parties to case."""
+        pattern = (
+            r'SUPREME COURT OF THE UNITED STATES '
+            r'\n(.*) v. (.*)ON PETITION'
         )
 
         petitioner, respondent = require_non_none(
             re.compile(pattern, re.DOTALL).search(
-                self.opinion_txt_raw,
+                self.opinion_text,
             ),
         ).groups()
 
@@ -58,11 +61,12 @@ class Opinion():
 
         return petitioner, respondent
 
-    def get_op_court(self) -> str:
-        pattern = '\nON.*TO THE (.*)No.'
+    def get_court(self) -> str:
+        """Get court below."""
+        pattern = r'\nON.*TO THE (.*?)No.'
         match = require_non_none(
             re.compile(pattern, re.DOTALL)
-            .search(self.opinion_txt_raw),
+            .search(self.opinion_text),
         )
         return (
             match.groups()[0]
@@ -74,25 +78,10 @@ class Opinion():
         """Print {petitioner} v. {respondent} case format."""
         return ' v. '.join([self.petitioner, self.respondent])
 
-    def get_opinion_text(self) -> str:
-        """Return cleaned opinion text."""
-        # TODO: Implement remove opinion headed
-        # for each page using text
-        return self.clean_opinion_text(self.opinion_txt_raw)
-
-    def clean_opinion_text(self, text: str) -> str:
-        """Clean up text"""
-        #  remove newline whitespace
-        text = re.sub(r'(\n* *\n)(\w+)', ' \\2', text)
-        #  join hyphenated spillovers
-        text = re.sub(r'(\w)(- )(\w)', '\\1\\3', text)
-        #  remove extra spaces between punctuation.
-        text = re.sub(r'([\.\,])  ', '\\1 ', text)
-        #  remove newlines after header removal
-        text = re.sub(r'( \n )(\w)', ' \2', text)
-        #  remove hyphenated spillovers after header removal
-        text = re.sub(r'(\w)-\n ', '\\1', text)
-        #  remove newline when not followed by whitespace
-        text = re.sub(r'  \n(\S)', ' \\1', text)
-
-        return text
+    def get_case_number(self) -> str:
+        pattern = r'No. +(.*?)\.'
+        match = require_non_none(
+            re.compile(pattern, re.DOTALL)
+            .search(self.opinion_text),
+        )
+        return match.groups()[0].strip()
