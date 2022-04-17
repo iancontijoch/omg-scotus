@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 
 from omg_scotus.helpers import get_term_year
+from omg_scotus.helpers import remove_extra_whitespace
 
 
 @pytest.mark.parametrize(
@@ -20,3 +21,15 @@ from omg_scotus.helpers import get_term_year
 )
 def test_get_term_year(dt, expected):
     assert get_term_year(dt) == expected
+
+
+@pytest.mark.parametrize(
+    ('s', 'expected'),
+    (
+        ('FOO  BAR', 'FOO BAR'),
+        ('  FOO BAR', 'FOO BAR'),
+        ('  FOO  BAR ', 'FOO BAR'),
+    ),
+)
+def test_remove_extra_whitespace(s, expected):
+    assert remove_extra_whitespace(s) == expected

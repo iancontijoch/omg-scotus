@@ -5,7 +5,6 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Any
 
-from omg_scotus.fetcher import Fetcher
 from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
 from omg_scotus.helpers import require_non_none
@@ -147,22 +146,3 @@ class Parser:
     def get_object(self) -> Any:
         ps = self.parser_strategy
         return ps.get_object()
-
-
-if __name__ == '__main__':
-    fr = Fetcher.from_url(
-        url=(
-            'https://www.supremecourt.gov/'
-            + 'orders/courtorders/022822zor_o759.pdf'
-        ),
-    )
-
-    pr = Parser(fr.get_payload())
-    parsed_data = pr.parse()
-    ol = pr.get_object()
-
-    if ol.opinions:
-        for opinion in ol.opinions:
-            print(opinion.case_name)
-            print(opinion.author)
-            print(opinion.joiners)

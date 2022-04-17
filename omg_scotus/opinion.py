@@ -75,10 +75,11 @@ class Opinion():
         ).strip()
 
     def get_case_name(self) -> str:
-        """Print {petitioner} v. {respondent} case format."""
+        """Return {petitioner} v. {respondent} case format."""
         return ' v. '.join([self.petitioner, self.respondent])
 
     def get_case_number(self) -> str:
+        """Return case number."""
         pattern = r'No. +(.*?)\.'
         match = require_non_none(
             re.compile(pattern, re.DOTALL)

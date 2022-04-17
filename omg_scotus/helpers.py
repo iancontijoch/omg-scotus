@@ -81,4 +81,5 @@ def is_stay_order(order_title: str, pdf: pdfplumber.pdf.PDF) -> bool:
 
 
 def remove_extra_whitespace(s: str) -> str:
+    """Remove extra whitespace."""
     return ' '.join(s.split())

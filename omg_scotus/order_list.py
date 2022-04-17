@@ -4,6 +4,7 @@ import re
 
 from omg_scotus._enums import OrderListSectionType
 from omg_scotus.case import Case
+from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.opinion import Opinion
 
 
@@ -87,8 +88,8 @@ class OrderList:
         )
 
         for m in matches:
-            section_title, section_content = ' '.join(
-                m.groups()[0].split(),
+            section_title, section_content = remove_extra_whitespace(
+                m.groups()[0],
             ), m.groups()[1]  # remove whitespace noise
 
             section = OrderListSection(
