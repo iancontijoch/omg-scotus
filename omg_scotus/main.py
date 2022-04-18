@@ -5,6 +5,7 @@ from omg_scotus.parser import Parser
 
 
 def main() -> int:
+
     fr = Fetcher.from_url(
         url=(
             'https://www.supremecourt.gov/'
@@ -18,9 +19,7 @@ def main() -> int:
     print(ol)
     if ol.opinions:
         for opinion in ol.opinions:
-            print(opinion.case_name)
-            print(opinion.author)
-            print(opinion.joiners)
+            print(opinion)
 
     return 0
 

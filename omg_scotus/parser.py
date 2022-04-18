@@ -8,6 +8,7 @@ from typing import Any
 from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
 from omg_scotus.helpers import require_non_none
+from omg_scotus.opinion import StayOpinion
 from omg_scotus.order_list import OrderList
 
 
@@ -94,8 +95,9 @@ class StayOrderParserStrategy(ParserStrategy):
             retv += segment
         return retv
 
-    def get_object(self) -> None:
-        pass
+    def get_object(self) -> Any:
+        parsed_order = self.parse()
+        return StayOpinion(text=parsed_order)
 
 
 class Parser:

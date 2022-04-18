@@ -4,6 +4,7 @@ import re
 
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.opinion import Opinion
+from omg_scotus.opinion import OrderOpinion
 from omg_scotus.order_list_section import OrderListSection
 from omg_scotus.order_list_section import OrderListSectionType
 
@@ -85,4 +86,4 @@ class OrderList:
 
         for m in matches:
             opinion_text = self.opinions_text[m.span()[0]: m.span()[1]]
-            self.opinions.append(Opinion(opinion_text=opinion_text))
+            self.opinions.append(OrderOpinion(text=opinion_text))

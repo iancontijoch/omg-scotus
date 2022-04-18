@@ -49,33 +49,3 @@ class OrderType(Enum):
     MISCELLANEOUS_ORDER = auto()
     STAY_ORDER = auto()
     RULES_ORDER = auto()
-
-
-class Justice(Enum):
-    CHIEF = auto()
-    BREYER = auto()
-    THOMAS = auto()
-    ALITO = auto()
-    SOTOMAYOR = auto()
-    KAGAN = auto()
-    GORSUCH = auto()
-    KAVANAUGH = auto()
-    BARRETT = auto()
-
-    @staticmethod
-    def from_string(s: str) -> Justice:
-        d = {
-            'CHIEF JUSTICE': Justice.CHIEF,
-            'JUSTICE BREYER': Justice.BREYER,
-            'JUSTICE THOMAS': Justice.THOMAS,
-            'JUSTICE ALITO': Justice.ALITO,
-            'JUSTICE SOTOMAYOR': Justice.SOTOMAYOR,
-            'JUSTICE KAGAN': Justice.KAGAN,
-            'JUSTICE GORSUCH': Justice.GORSUCH,
-            'JUSTICE KAVANAUGH': Justice.KAVANAUGH,
-            'JUSTICE BARRETT': Justice.BARRETT,
-        }
-        try:
-            return d[s]
-        except KeyError:
-            raise NotImplementedError

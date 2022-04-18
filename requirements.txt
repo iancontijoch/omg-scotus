@@ -4,4 +4,5 @@ dateparser
 pdfplumber
 pre-commit
 pytest
+pytest-lazy-fixture
 requests
