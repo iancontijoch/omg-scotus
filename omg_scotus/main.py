@@ -18,17 +18,15 @@ def get_order(id: str) -> Any:
 
 def main() -> int:
 
-    stay_order = get_order('050820zr_097c')
-    orderlist_no_opinion = get_order('040422zor_4f14')
-    orderlist_w_one_opinion = get_order('041822zor_19m2')
-    orderlist_w_mult_opinions = get_order('022822zor_o759')
+    debug_orders = [
+        get_order('050820zr_097c'),  # stay
+        get_order('040422zor_4f14'),  # orderlist no op.
+        get_order('041822zor_19m2'),  # OL 1 op.
+        get_order('022822zor_o759'),  # OL 2+ op.
+        get_order('041822zr_11o2'),  # misc. order (type orderlist)
+    ]
 
-    debug_orders = (
-        stay_order,
-        orderlist_no_opinion,
-        orderlist_w_one_opinion,
-        orderlist_w_mult_opinions,
-    )
+    order = debug_orders[0]
 
     for order in debug_orders:
         print(order)

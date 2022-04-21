@@ -37,12 +37,22 @@ class OrderListParserStrategy(ParserStrategy):
         retv: defaultdict[str, str | None] = defaultdict(lambda: None)
         first_opinion_page = True
 
+        is_misc_order = self.msg['order_title'] == 'Miscellaneous Order'
+        is_order_list = self.msg['order_title'] == 'Order List'
+
         for start, end in self.msg['pdf_page_indices']:
             segment = self.msg['pdf_text'][start:end]
-
-            if segment.splitlines()[-1].strip().isnumeric():
+            # Miscellaneous Orders aren't numbered, but OrderLists are
+            if (
+                is_misc_order or
+                (
+                    is_order_list
+                    and segment.splitlines()[-1].strip().isnumeric()
+                )
+            ):
                 # ends w/ page num, so it's an order page
-                segment = '\n'.join(segment.splitlines()[:-1])  # crop Pg Num
+                if is_order_list:
+                    segment = '\n'.join(segment.splitlines()[:-1])  # crop Pg#
                 if 'orders_text' in retv:
                     retv['orders_text'] += segment
                 else:
@@ -136,7 +146,7 @@ class Parser:
             ):
                 self.parser_strategy = StayOrderParserStrategy(self.msg)
             else:
-                self.parser_strategy = MiscOrderParserStrategy(self.msg)
+                self.parser_strategy = OrderListParserStrategy(self.msg)
         else:
             raise NotImplementedError
 

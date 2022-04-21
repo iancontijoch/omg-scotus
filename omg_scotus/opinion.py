@@ -7,6 +7,7 @@ from enum import auto
 from enum import Enum
 
 from omg_scotus.helpers import remove_extra_whitespace
+from omg_scotus.helpers import remove_hyphenation
 from omg_scotus.helpers import require_non_none
 from omg_scotus.justice import extract_justice
 from omg_scotus.justice import JusticeTag
@@ -46,6 +47,7 @@ class Opinion(ABC):
 
     def get_parties(self) -> tuple[str, ...]:
         """Get parties to case."""
+        # TODO: Abstract get_parties and get_court into get_regex method.
         flag = 0
         pattern, flags = require_non_none(self._regex_patterns['parties'])
         if flags:
@@ -64,7 +66,7 @@ class Opinion(ABC):
                     x.replace('\n', '')
                     .replace('  ', ' ')
                     .strip(),
-                ), matches,  # satisfy
+                ), matches,
             ),
         )
 
@@ -97,6 +99,13 @@ class Opinion(ABC):
             ).strip()
         else:
             return None
+
+    def prepare_text(self) -> str:
+        """Remove extra spaces, newlines, overflow hyphens from text."""
+        text = self.text
+        # Step 1 - remove overflow hyphens:
+        text = remove_hyphenation(text)
+        return text
 
     def __str__(self) -> str:
         retv = (
@@ -150,19 +159,15 @@ class OrderOpinion(Opinion):
         STATEMENT_PATTERN = r'writ of certiorari is denied\.\s+Statement'
         DISSENT_PATTERN = r'dissenting from the denial [\w\s\-]+'
         CONCURRENCE_PATTERN = r'concurring'
-        if bool(re.search(STATEMENT_PATTERN, self.text)):
+        text = self.prepare_text()  # remove artifacts that hinder analysis
+        if bool(re.search(STATEMENT_PATTERN, text)):
             return OpinionType.STATEMENT
-        elif bool(re.search(DISSENT_PATTERN, self.text)):
+        elif bool(re.search(DISSENT_PATTERN, text)):
             return OpinionType.DISSENT
-        elif bool(re.search(CONCURRENCE_PATTERN, self.text)):
+        elif bool(re.search(CONCURRENCE_PATTERN, text)):
             return OpinionType.CONCURRENCE
         else:
             raise NotImplementedError
-
-        # TODO:
-        # Guard against following scenario (w/ hyphens)
-        #  JUSTICE SOTOMAYOR, dissenting from the denial of certi-
-        #  orari.
 
 
 class StayOpinion(Opinion):
@@ -181,8 +186,3 @@ class StayOpinion(Opinion):
     def get_author(self) -> None:
         """Return opinion author."""
         self.author = extract_justice(self.text)
-
-    # def get_court(self) -> str | None:
-    #     pattern = r'the\smandate\sof\sthe\s(.*?)\,\scase'
-    #     flags = [re.DOTALL]
-    #     return super().get_court(pattern=pattern, flags=flags)

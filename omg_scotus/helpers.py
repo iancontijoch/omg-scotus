@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -83,3 +84,10 @@ def is_stay_order(order_title: str, pdf: pdfplumber.pdf.PDF) -> bool:
 def remove_extra_whitespace(s: str) -> str:
     """Remove extra whitespace."""
     return ' '.join(s.split())
+
+
+def remove_hyphenation(text: str) -> str:
+    return re.sub(
+        pattern=r'(\w+)-$\n(\w+)', repl=r'\1\2',
+        string=text, flags=re.M,
+    )

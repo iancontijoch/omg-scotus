@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from omg_scotus.helpers import remove_extra_whitespace
+from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import Opinion
 from omg_scotus.opinion import OrderOpinion
 from omg_scotus.order_list_section import OrderListSection
@@ -24,15 +25,21 @@ class OrderList:
         self.get_opinions()
 
     def get_title(self) -> str:
-        return self.orders_text.splitlines()[1]
+        """Return Order Title (first non space character through EOL."""
+        pattern = r'\S.*\n'
+        match = require_non_none(re.search(pattern, self.orders_text))
+        return remove_extra_whitespace(match.group())
 
     def get_date(self) -> str:
-        return self.orders_text.splitlines()[4]
+        """Return the date of the Order."""
+        pattern = r'[A-Z]+DAY\s*\,.*\d\d\d\d'
+        match = require_non_none(re.search(pattern, self.orders_text))
+        return remove_extra_whitespace(match.group())
 
     def __str__(self) -> str:
         """Return string representation of OrderList."""
-        s = '\n\n--------ORDER LIST SUMMARY--------'
-        s += f'\n{self.title}\n{self.date}'
+        s = f'\n{self.title}\n{self.date}'
+        s += '\n\n--------ORDER LIST SUMMARY--------'
         s += '\n'.join([str(s) for s in self.sections])
         return s
 
