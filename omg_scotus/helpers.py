@@ -5,6 +5,7 @@ from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from io import BytesIO
+from typing import Any
 from typing import TypeVar
 
 import pdfplumber
@@ -47,9 +48,8 @@ def get_term_year(dt: date) -> str:
 
 def suffix_base_url(base_url: str, url: str | None) -> str:
     """Append year to base URL."""
-    if not url:
-        return base_url
-    mmddyy = url.split('/')[-1][:6]
+    # URL was passed, so get Term from extracted URL date
+    mmddyy = require_non_none(url).split('/')[-1][:6]
     term_yr = get_term_year(datetime.strptime(mmddyy, '%m%d%y').date())
     return base_url + term_yr
 
@@ -91,3 +91,21 @@ def remove_hyphenation(text: str) -> str:
         pattern=r'(\w+)-$\n(\w+)', repl=r'\1\2',
         string=text, flags=re.M,
     )
+
+
+def remove_newline_from_list(lst: list[Any]) -> list[Any]:
+    return list(filter(('\n').__ne__, lst))
+
+
+def remove_notice(text: str) -> str:
+    """Remove NOTICE disclaimer from Syllabus text."""
+    return re.sub(r'(?s)NOTICE:.+', '', text)
+
+
+def create_docket_number(string: str) -> str:
+    """Return a docket number to fetch JSON from."""
+    match = re.match(r'(\d+)(?=.+Orig\.)', string)
+    if match:
+        return f'22O{match.groups()[0]}'
+    else:
+        return string

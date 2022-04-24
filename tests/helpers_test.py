@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 
+from omg_scotus.helpers import create_docket_number
 from omg_scotus.helpers import get_term_year
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import remove_hyphenation
@@ -56,3 +57,14 @@ Court’s jurisdiction.  See Foster v. Chatman, 578 U. S. 488,
 497 (2016). As already shown, however, the state harmlesserror rule was not “an ‘adequate’  basis for the court’s decision” on Love’s federal claim.  Ibid.  Indeed, in this situation, the rule is entirely beside the point.  The State’s jurisdictional argument therefore fails. """
 
     assert remove_hyphenation(text) == expected
+
+
+@pytest.mark.parametrize(
+    ('s', 'expected'),
+    (
+        ('143, Orig.', '22O143'),
+        ('19-1257', '19-1257'),
+    ),
+)
+def test_create_docket_number(s: str, expected: str) -> None:
+    assert create_docket_number(s) == expected

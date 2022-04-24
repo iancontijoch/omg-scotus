@@ -1,45 +1,202 @@
 from __future__ import annotations
 
 import re
+from abc import ABC
+from abc import abstractmethod
 
+from omg_scotus._enums import OrderListSectionType
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import Opinion
+from omg_scotus.opinion import OpinionType
 from omg_scotus.opinion import OrderOpinion
+from omg_scotus.opinion import SlipOpinion
+from omg_scotus.opinion import Syllabus
 from omg_scotus.order_list_section import OrderListSection
-from omg_scotus.order_list_section import OrderListSectionType
+from omg_scotus.order_list_section import Section
 
 
-class OrderList:
+class DocumentList(ABC):
     text: str
-    sections: list[OrderListSection]
+    date: str
+    sections: list[Opinion | OrderListSection | Section]
+
+    def __init__(self, text: str, date: str):
+        self.text = text
+        self.date = date
+
+    @abstractmethod
+    def get_title(self) -> str: pass
+
+    # @abstractmethod
+    # def get_date(self) -> str: pass
+
+    @abstractmethod
+    def get_sections(self) -> None: pass
+
+    def get_header_name(self) -> str:
+        classname = self.__class__.__name__
+        if classname == 'OpinionList':
+            return 'OPINION LIST'
+        elif classname == 'OrderOpinionList':
+            return 'OPINION ORDER'
+        elif classname == 'OrderList':
+            return 'ORDER LIST'
+        else:
+            raise ValueError
+
+    # def __str__(self) -> str:
+    #     """Return string representation of OpinionList."""
+    #     s = f'{self.date}\n\n'
+    #     s += f"{self.get_header_name()}'SUMMARY':~^{72}"
+    #     s += f'\nHeld:\n\t{self.holding}\n\n'
+    #     s += '\n'.join([str(s) for s in self.sections])
+    #     return s
+
+
+class OpinionList(DocumentList):
+    def __init__(
+        self, text: str, date: str, holding: str,
+        petitioner: str, respondent: str,
+        lower_court: str, case_number: str,
+        is_per_curiam: bool,
+    ) -> None:
+        super().__init__(text=text, date=date)
+        self.holding = holding
+        self.petitioner = petitioner
+        self.respondent = respondent
+        self.lower_court = lower_court
+        self.case_number = case_number
+        self.is_per_curiam = is_per_curiam
+        self.title = self.get_title()
+        self.sections = []
+        self.get_sections()
+
+    def get_title(self) -> str:
+        """Return Overall Case Name"""
+        # TODO
+        return 'GET CASE NAME'
+
+    def get_sections(self) -> None:
+        """Create and append opinions in Opinion List."""
+        # regex pattern looks for text between
+        # SUPREME COURT OF THE UNITED STATES
+        pattern = (
+            r'(SUPREME COURT OF THE UNITED STATES\s\s)(.*?(?=SUPREME COURT '
+            r'OF THE UNITED STATES\s\s)|.*$)'
+        )
+        matches = re.finditer(
+            pattern=pattern,
+            string=self.text,
+            flags=re.DOTALL,
+        )
+
+        # the majority opinion (index 1) doesn't contain joiner info
+        # so we grab joiners from the syllabus, which does.
+
+        # note: Per Curiams have no syllabi.
+
+        for i, m in enumerate(matches):
+            section_text = self.text[m.span()[0]: m.span()[1]]
+            if i == 0 and not self.is_per_curiam:  # syllabus
+                syll = Syllabus(
+                    text=section_text, petitioner=self.petitioner,
+                    respondent=self.respondent,
+                    lower_court=self.lower_court,
+                    case_number=self.case_number,
+                )
+                majority_joiners = syll.joiners
+                self.sections.append(syll)
+            else:
+                slip = SlipOpinion(
+                    text=section_text,
+                    petitioner=self.petitioner,
+                    respondent=self.respondent,
+                    lower_court=self.lower_court,
+                    case_number=self.case_number,
+                )
+                if i == 1 and not self.is_per_curiam:
+                    slip.joiners = majority_joiners
+                self.sections.append(slip)
+
+    def __str__(self) -> str:
+        """Return string representation of OpinionList."""
+        s = f'{self.date}\n\n'
+        s += f"{'OPINION SUMMARY':~^{72}}"
+        s += f'\nHeld:\n\t{self.holding}\n\n'
+        s += '\n'.join([
+            str(s) for s in self.sections
+            if s.type is not OpinionType.SYLLABUS
+        ])
+        return s
+
+
+class OrderOpinionList(DocumentList):
+    def __init__(self, text: str, date: str) -> None:
+        super().__init__(text=text, date=date)
+        self.title = self.get_title()
+        self.sections = []
+        self.get_sections()
+
+    def get_title(self) -> str:
+        """Return Cite as: (596 U.S.)"""
+        # TODO
+        pass
+
+    def __str__(self) -> str:
+        """Return string representation of OrderOpinionList."""
+        s = f'{self.date}\n\n'
+        s += f"{'ORDER LIST OPINION SUMMARY':~^{72}}"
+        s += '\n'.join([
+            str(s) for s in self.sections
+            if s.type is not OpinionType.SYLLABUS
+        ])
+        return s
+
+    def get_sections(self) -> None:
+        """Create and append opinions embedded in Order List."""
+        # regex pattern looks for text between
+        # SUPREME COURT OF THE UNITED STATES
+        pattern = (
+            r'(SUPREME COURT OF THE UNITED STATES\s\s)(.*?(?=SUPREME COURT '
+            r'OF THE UNITED STATES\s\s)|.*$)'
+        )
+        matches = re.finditer(
+            pattern=pattern,
+            string=self.text,
+            flags=re.DOTALL,
+        )
+        for m in matches:
+            section_text = self.text[m.span()[0]: m.span()[1]]
+            self.sections.append(OrderOpinion(text=section_text))
+
+
+class OrderList(DocumentList):
+    text: str
     opinions: list[Opinion]
 
-    def __init__(self, orders_text: str, opinions_text: str | None):
-        self.orders_text = orders_text
-        self.opinions_text = opinions_text
+    def __init__(self, text: str, date: str) -> None:
+        super().__init__(text=text, date=date)
         self.title = self.get_title()
-        self.date = self.get_date()
-        self.sections, self.opinions = [], []
+        self.sections = []
         self.get_sections()
-        self.get_opinions()
 
     def get_title(self) -> str:
         """Return Order Title (first non space character through EOL."""
         pattern = r'\S.*\n'
-        match = require_non_none(re.search(pattern, self.orders_text))
+        match = require_non_none(re.search(pattern, self.text))
         return remove_extra_whitespace(match.group())
 
     def get_date(self) -> str:
         """Return the date of the Order."""
         pattern = r'[A-Z]+DAY\s*\,.*\d\d\d\d'
-        match = require_non_none(re.search(pattern, self.orders_text))
+        match = require_non_none(re.search(pattern, self.text))
         return remove_extra_whitespace(match.group())
 
     def __str__(self) -> str:
         """Return string representation of OrderList."""
-        s = f'\n{self.title}\n{self.date}'
-        s += '\n\n--------ORDER LIST SUMMARY--------'
+        s = f'\n{self.title}\n{self.date}\n\n'
+        s += f"{'ORDER LIST SUMMARY':~^{72}}"
         s += '\n'.join([str(s) for s in self.sections])
         return s
 
@@ -57,7 +214,7 @@ class OrderList:
         )
         matches = re.finditer(
             pattern=pattern,
-            string=self.orders_text, flags=re.DOTALL,
+            string=self.text, flags=re.DOTALL,
         )
 
         for m in matches:
@@ -74,23 +231,9 @@ class OrderList:
             )
             self.sections.append(section)
 
-    def get_opinions(self) -> None:
-        """Create and append opinions embedded in OrderList."""
-        # regex pattern looks for text between
-        # SUPREME COURT OF THE UNITED STATES
-        if not self.opinions_text:
-            return None
-
-        pattern = (
-            r'(SUPREME COURT OF THE UNITED STATES\s\s)(.*?(?=SUPREME COURT '
-            r'OF THE UNITED STATES\s\s)|.*$)'
-        )
-        matches = re.finditer(
-            pattern=pattern,
-            string=self.opinions_text,
-            flags=re.DOTALL,
-        )
-
-        for m in matches:
-            opinion_text = self.opinions_text[m.span()[0]: m.span()[1]]
-            self.opinions.append(OrderOpinion(text=opinion_text))
+    def get_cases(self) -> list[str]:
+        """Return all cases in an orderlist, regardless of section."""
+        return [
+            str(case.number) for section in self.sections
+            for case in section.cases
+        ]

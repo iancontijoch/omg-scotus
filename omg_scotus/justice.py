@@ -54,6 +54,15 @@ class JusticeTag(Enum):
             'JUSTICE KAVANAUGH': JusticeTag.KAVANAUGH,
             'JUSTICE BARRETT': JusticeTag.BARRETT,
             'PER CURIAM': JusticeTag.PER_CURIAM,
+            'ROBERTS': JusticeTag.CHIEF,
+            'THOMAS': JusticeTag.THOMAS,
+            'BREYER': JusticeTag.BREYER,
+            'ALITO': JusticeTag.ALITO,
+            'SOTOMAYOR': JusticeTag.SOTOMAYOR,
+            'KAGAN': JusticeTag.KAGAN,
+            'GORSUCH': JusticeTag.GORSUCH,
+            'KAVANAUGH': JusticeTag.KAVANAUGH,
+            'BARRETT': JusticeTag.BARRETT,
         }
         if s not in d:
             raise NotImplementedError

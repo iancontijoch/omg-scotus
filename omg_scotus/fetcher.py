@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import json
 from abc import ABC
 from abc import abstractmethod
 from datetime import datetime
 from enum import auto
 from enum import Enum
+from typing import Any
 
 import bs4
 import pdfplumber
 import requests
 from bs4 import BeautifulSoup
 
+from omg_scotus.helpers import create_docket_number
+from omg_scotus.helpers import get_term_year
 from omg_scotus.helpers import read_pdf
+from omg_scotus.helpers import remove_newline_from_list
 from omg_scotus.helpers import require_non_none
 from omg_scotus.helpers import suffix_base_url
 
@@ -24,11 +29,25 @@ class FetcherStrategy(ABC):
     soup: bs4.BeautifulSoup
 
     def get_soup(self) -> bs4.BeautifulSoup:
+        """Get BeautifulSoup object."""
         payload = requests.get(self.base_url)
         return BeautifulSoup(payload.text, 'html.parser')
 
     @abstractmethod
-    def get_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]: pass
+    def get_url_for_term(self) -> None:
+        pass
+
+    @abstractmethod
+    def get_most_recent_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+        pass
+
+    @abstractmethod
+    def get_specified_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+        pass
+
+    @abstractmethod
+    def get_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+        pass
 
 
 class OrdersFetcherStrategy(FetcherStrategy):
@@ -40,9 +59,7 @@ class OrdersFetcherStrategy(FetcherStrategy):
         self.most_recent = most_recent
         self.url = url
         self.base_url = 'https://www.supremecourt.gov/orders/ordersofthecourt/'
-        self.base_url = suffix_base_url(
-            self.base_url, self.url,
-        )  # add year to base_url
+        self.get_url_for_term()
         self.soup = self.get_soup()
 
     def get_most_recent_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
@@ -54,15 +71,15 @@ class OrdersFetcherStrategy(FetcherStrategy):
         spans = div_orders.contents[1].find_all('span')
         date = spans[0].text.strip()
         date = datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d')
-        order_title = spans[1].text.strip()
-        order_url = (
+        title = spans[1].text.strip()
+        url = (
             f'https://www.supremecourt.gov/'
             f"{spans[1].contents[0]['href']}"
         )
         retv = {
             'date': date,
-            'order_title': order_title,
-            'pdf': read_pdf(order_url),
+            'title': title,
+            'pdf': read_pdf(url),
         }
         return retv
 
@@ -82,13 +99,13 @@ class OrdersFetcherStrategy(FetcherStrategy):
         date: str = require_non_none(
             match[0].parent.parent.contents[1].text.strip(),
         )
-        order_title = match[0].text
-        order_url = require_non_none(self.url)
+        title = match[0].text
+        url = require_non_none(self.url)
 
         retv = {
             'date': date,
-            'order_title': order_title,
-            'pdf': read_pdf(order_url),
+            'title': title,
+            'pdf': read_pdf(url),
         }
         return retv
 
@@ -99,13 +116,150 @@ class OrdersFetcherStrategy(FetcherStrategy):
             else self.get_specified_payload()
         )
 
+    def get_url_for_term(self) -> None:
+        """Get URL with Term Year suffix."""
+        if not self.url:
+            # Grabbing most recent date, so get today's Term.
+            self.base_url += get_term_year(datetime.today().date())
+        else:
+            self.base_url = suffix_base_url(
+                self.base_url, self.url,
+            )
+
 
 class OpinionsFetcherStrategy(FetcherStrategy):
-    def __init__(self) -> None:
-        self.url = 'https://www.supremecourt.gov/opinions/slipopinion/21'
+    def __init__(
+        self,
+        most_recent: bool = False,
+        url: str | None = None,
+    ) -> None:
+        self.most_recent = most_recent
+        self.url = url
+        self.base_url = 'https://www.supremecourt.gov/opinions/slipopinion/'
+        self.get_url_for_term()
+        self.soup = self.get_soup()
+
+    def get_most_recent_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+        """Return Dict with the most recent Opinion Date, Title, and PDF."""
+        # contents have \n's intercalated, so they get removed
+        latest_opinion_row = list(
+            filter(
+                ('\n').__ne__,
+                self.soup.find_all('tr')[2].contents,
+            ),
+        )
+
+        date = latest_opinion_row[1].text
+        docket_number = latest_opinion_row[2].text
+        date = datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d')
+        title = latest_opinion_row[3].text.strip()
+        author_initials = latest_opinion_row[5].strip()
+        holding = latest_opinion_row[3].contents[0]['title']
+        url = (
+            f'https://www.supremecourt.gov'
+            f"{latest_opinion_row[3].next['href']}"
+        )
+
+        docket_json = self.get_docket_json(
+            create_docket_number(docket_number),
+        )
+        petitioner = docket_json['PetitionerTitle']
+        respondent = docket_json['RespondentTitle']
+        lower_court = docket_json['LowerCourt']
+
+        retv = {
+            'date': date,
+            'title': title,
+            'petitioner': petitioner,
+            'respondent': respondent,
+            'lower_court': lower_court,
+            'holding': holding,
+            'is_per_curiam': author_initials == 'PC',
+            'pdf': read_pdf(url),
+        }
+        return retv
+
+    def get_specified_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+        """Return Dict with the Order Date, Title, and PDF for a specified URL.
+
+        Input: PDF url
+        ----------------
+        https://www.supremecourt.gov/opinions/18pdf/17-1672_5hek.pdf
+
+        """
+        match: BeautifulSoup.contents = require_non_none(
+            self.soup.find_all(
+                attrs={
+                    'href': require_non_none(self.url).replace(
+                        'https://www.supremecourt.gov',
+                        '',
+                    ),
+                },
+            ),
+        )
+        date = remove_newline_from_list(
+            match[0].parent.parent.contents,
+        )[1].text
+        docket_number = remove_newline_from_list(
+            match[0].parent.parent.contents,
+        )[2].text
+
+        author_initials = remove_newline_from_list(
+            match[0].parent.parent.contents,
+        )[5].text
+
+        title = match[0].text
+        holding = match[0]['title']
+        url = require_non_none(self.url)
+
+        docket_json = self.get_docket_json(
+            create_docket_number(docket_number),
+        )
+        petitioner = docket_json['PetitionerTitle']
+        respondent = docket_json['RespondentTitle']
+        lower_court = docket_json['LowerCourt']
+        case_number = docket_json['CaseNumber']
+
+        retv = {
+            'date': date,
+            'title': title,
+            'petitioner': petitioner,
+            'respondent': respondent,
+            'lower_court': lower_court,
+            'case_number': case_number,
+            'holding': holding,
+            'is_per_curiam': author_initials == 'PC',
+            'pdf': read_pdf(url),
+        }
+        return retv
+
+    def get_url_for_term(self) -> None:
+        """Get URL with Term Year suffix."""
+        if not self.url:
+            # Grabbing most recent date, so get today's Term.
+            self.base_url += get_term_year(datetime.today().date())
+        else:
+            # self.base_url = self.url.replace('')
+            term_year = self.url.split('/')[-2][:2]
+            self.base_url = (
+                f'https://www.supremecourt.gov/opinions/'
+                f'slipopinion/{term_year}'
+            )
 
     def get_payload(self) -> dict[str, Stream | str | pdfplumber.pdf.PDF]:
-        raise NotImplementedError
+        """Return Dict with Order Date, Order Title, and Order PDF"""
+        return (
+            self.get_most_recent_payload() if self.most_recent
+            else self.get_specified_payload()
+        )
+
+    @staticmethod
+    def get_docket_json(docket_number: str) -> dict[str, Any]:
+        """Return case JSON from SCOTUS online docket."""
+        url = (
+            f'https://www.supremecourt.gov/rss/cases/json/{docket_number}.json'
+        )
+        return json.loads(requests.get(url).text)
 
 
 class Stream(Enum):
@@ -157,7 +311,9 @@ class Fetcher:
                 most_recent=self.most_recent, url=self.url,
             )
         elif self.stream is Stream.OPINIONS:
-            self.strategy = OpinionsFetcherStrategy()
+            self.strategy = OpinionsFetcherStrategy(
+                most_recent=self.most_recent, url=self.url,
+            )
         else:
             raise NotImplementedError
 
