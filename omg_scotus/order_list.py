@@ -3,8 +3,10 @@ from __future__ import annotations
 import re
 from abc import ABC
 from abc import abstractmethod
+from typing import Any
 
 from omg_scotus._enums import OrderListSectionType
+from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import Opinion
@@ -19,17 +21,16 @@ from omg_scotus.order_list_section import Section
 class DocumentList(ABC):
     text: str
     date: str
+    stream: Stream
     sections: list[Opinion | OrderListSection | Section]
 
-    def __init__(self, text: str, date: str):
+    def __init__(self, text: str, date: str, stream: Stream):
         self.text = text
         self.date = date
+        self.stream = stream
 
     @abstractmethod
     def get_title(self) -> str: pass
-
-    # @abstractmethod
-    # def get_date(self) -> str: pass
 
     @abstractmethod
     def get_sections(self) -> None: pass
@@ -45,23 +46,16 @@ class DocumentList(ABC):
         else:
             raise ValueError
 
-    # def __str__(self) -> str:
-    #     """Return string representation of OpinionList."""
-    #     s = f'{self.date}\n\n'
-    #     s += f"{self.get_header_name()}'SUMMARY':~^{72}"
-    #     s += f'\nHeld:\n\t{self.holding}\n\n'
-    #     s += '\n'.join([str(s) for s in self.sections])
-    #     return s
-
 
 class OpinionList(DocumentList):
     def __init__(
-        self, text: str, date: str, holding: str,
+        self, stream: Stream,
+        text: str, date: str, holding: str,
         petitioner: str, respondent: str,
         lower_court: str, case_number: str,
         is_per_curiam: bool,
     ) -> None:
-        super().__init__(text=text, date=date)
+        super().__init__(text=text, date=date, stream=stream)
         self.holding = holding
         self.petitioner = petitioner
         self.respondent = respondent
@@ -96,9 +90,15 @@ class OpinionList(DocumentList):
 
         # note: Per Curiams have no syllabi.
 
+        # TODO: Original opinions are being treated as Syllabi. Fix!
+        # TODO: Search for original opinions with dissents/concurrences
+
         for i, m in enumerate(matches):
             section_text = self.text[m.span()[0]: m.span()[1]]
-            if i == 0 and not self.is_per_curiam:  # syllabus
+            if (
+                i == 0 and not self.is_per_curiam
+                and self.stream is Stream.SLIP_OPINIONS
+            ):  # syllabus
                 syll = Syllabus(
                     text=section_text, petitioner=self.petitioner,
                     respondent=self.respondent,
@@ -107,7 +107,7 @@ class OpinionList(DocumentList):
                 )
                 majority_joiners = syll.joiners
                 self.sections.append(syll)
-            else:
+            elif self.stream is Stream.SLIP_OPINIONS:
                 slip = SlipOpinion(
                     text=section_text,
                     petitioner=self.petitioner,
@@ -118,6 +118,16 @@ class OpinionList(DocumentList):
                 if i == 1 and not self.is_per_curiam:
                     slip.joiners = majority_joiners
                 self.sections.append(slip)
+            elif self.stream is Stream.OPINIONS_RELATING_TO_ORDERS:
+                self.sections.append(
+                    OrderOpinion(
+                        text=section_text,
+                        petitioner=self.petitioner,
+                        respondent=self.respondent,
+                        lower_court=self.lower_court,
+                        case_number=self.case_number,
+                    ),
+                )
 
     def __str__(self) -> str:
         """Return string representation of OpinionList."""
@@ -131,9 +141,9 @@ class OpinionList(DocumentList):
         return s
 
 
-class OrderOpinionList(DocumentList):
-    def __init__(self, text: str, date: str) -> None:
-        super().__init__(text=text, date=date)
+class OrderOpinionList(OpinionList):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
         self.title = self.get_title()
         self.sections = []
         self.get_sections()
@@ -168,15 +178,23 @@ class OrderOpinionList(DocumentList):
         )
         for m in matches:
             section_text = self.text[m.span()[0]: m.span()[1]]
-            self.sections.append(OrderOpinion(text=section_text))
+            self.sections.append(
+                OrderOpinion(
+                    text=section_text,
+                    petitioner=self.petitioner,
+                    respondent=self.respondent,
+                    lower_court=self.lower_court,
+                    case_number=self.case_number,
+                ),
+            )
 
 
 class OrderList(DocumentList):
     text: str
     opinions: list[Opinion]
 
-    def __init__(self, text: str, date: str) -> None:
-        super().__init__(text=text, date=date)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
         self.title = self.get_title()
         self.sections = []
         self.get_sections()

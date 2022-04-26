@@ -93,8 +93,8 @@ def remove_hyphenation(text: str) -> str:
     )
 
 
-def remove_newline_from_list(lst: list[Any]) -> list[Any]:
-    return list(filter(('\n').__ne__, lst))
+def remove_char_from_list(lst: list[Any], char: str) -> list[Any]:
+    return list(filter((char).__ne__, lst))
 
 
 def remove_notice(text: str) -> str:

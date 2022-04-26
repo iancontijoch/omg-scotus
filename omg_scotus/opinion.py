@@ -45,7 +45,7 @@ class Opinion(ABC):
     author: JusticeTag
     joiners: list[JusticeTag] | None
     type: OpinionType
-    _regex_patterns: dict[str, tuple[str, tuple[re._FlagsType, ...]]]
+    _regex_patterns: dict[str, str]
 
     def __init__(
         self, text: str, petitioner: str, respondent: str,
@@ -57,79 +57,16 @@ class Opinion(ABC):
         self.petitioner, self.respondent = petitioner, respondent
         self.case_number = case_number
         self.court_below = lower_court
-        # self.date = self.get_date()
         self.case_name = self.get_case_name()
         self.cases = [Case(number=self.case_number, name=self.case_name)]
-
-        # self.court_below = self.get_court()
         self.get_author()
 
     @abstractmethod
     def get_author(self) -> None: pass
 
-    def get_parties(self) -> tuple[str, ...]:
-        """Get parties to case."""
-        # TODO: Abstract get_parties and get_court into get_regex method.
-        flag = 0
-        pattern, flags = require_non_none(self._regex_patterns['parties'])
-        if flags:
-            for f in flags:
-                flag |= f
-        matches = (
-            require_non_none(
-                re.compile(pattern, flag)
-                .search(self.text),
-            ).groups()
-        )
-        # petitioner, respondent
-        return tuple(
-            map(
-                lambda x: str(
-                    x.replace('\n', '')
-                    .replace('  ', ' ')
-                    .strip(),
-                ), matches,
-            ),
-        )
-
-    def get_date(self) -> str:
-        """Return date Opinion was decided."""
-        pattern = r'^No\. +.*?Decided\s(.*?)$'
-        match = require_non_none(
-            re.compile(pattern, re.DOTALL | re.M)
-            .search(self.text),
-        )
-        return match.groups()[0].strip()
-
     def get_case_name(self) -> str:
         """Return {petitioner} v. {respondent} case format."""
         return ' v. '.join([self.petitioner, self.respondent])
-
-    def get_case_number(self) -> str:
-        """Return case number."""
-        pattern = r'^No. +(.*?)\.'
-        match = require_non_none(
-            re.compile(pattern, re.DOTALL | re.M)
-            .search(self.text),
-        )
-        return match.groups()[0].strip()
-
-    def get_court(self) -> str | None:
-        """Get court below."""
-        flag = 0
-        pattern, flags = require_non_none(self._regex_patterns['court'])
-        if flags:
-            for f in flags:
-                flag |= f
-        match = re.compile(pattern, flag).search(self.text)
-        if match:
-            return (
-                match.groups()[0]
-                .replace('\n', '')
-                .replace('  ', ' ')
-            ).strip()
-        else:
-            return None
 
     @staticmethod
     def get_type(text: str) -> OpinionType:
@@ -177,18 +114,18 @@ class Opinion(ABC):
 
 class OrderOpinion(Opinion):
 
-    def __init__(self, text: str) -> None:
-        """Init Opinion."""
-        self._regex_patterns = {
-            'parties': (
-                r'SUPREME COURT OF THE UNITED STATES '
-                r'\n(.*) v. (.*)ON PETITION', (re.DOTALL,),
-            ),
-            'court': (r'\nON.*TO THE (.*?)No.', (re.DOTALL,)),
-            'date': (r'^No\. +.*?Decided\s(.*?)$', (re.M, re.DOTALL)),
-        }
-        super().__init__(text=text)  # type: ignore
-        # self.type = self.get_type(text=text)
+    # def __init__(self, text: str) -> None:
+    #     """Init Opinion."""
+    #     # self._regex_patterns = {
+    #     #     'parties': (
+    #     #         r'(?s)SUPREME COURT OF THE UNITED STATES '
+    #     #         r'\n(.*) v. (.*)ON PETITION'
+    #     #     ),
+    #     #     'court': r'(?s)\nON.*TO THE (.*?)No.',
+    #     #     'date': r'(?ms)^No\. +.*?Decided\s(.*?)$',
+    #     # }
+    #     # super().__init__(text=text)  # type: ignore
+    #     # self.type = self.get_type(text=text)
 
     def get_author(self) -> None:
         """Return opinion author."""
@@ -213,13 +150,42 @@ class StayOpinion(Opinion):
     def __init__(self, text: str) -> None:
         """Init Opinion."""
         self._regex_patterns = {
-            'parties': (
-                r'(.*)\,\s+Applicant\s+v.\s+(.*$)', (re.M,),
-            ),
-            'court': (r'the\smandate\sof\sthe\s(.*?)\,\scase', (re.DOTALL,)),
+            'parties': r'(?m)(.*)\,\s+Applicant\s+v.\s+(.*$)',
+            'court': r'(?s)the\smandate\sof\sthe\s(.*?)\,\scase',
+            'case_num': r'\bNo.\s+([A-Z\d]+)',
         }
-        super().__init__(text=text)  # type: ignore
+        self.text = text
+        petitioner, respondent = self.get_attr('parties', text)
+        court_below = self.get_attr('court', text)[0]
+        case_number = self.get_attr('case_num', text)[0]
+
+        super().__init__(
+            text=text, petitioner=petitioner,
+            respondent=respondent, lower_court=court_below,
+            case_number=case_number,
+        )
         self.type = OpinionType.STAY
+
+    def get_attr(self, attr: str, text: str) -> tuple[str, ...]:
+        """Get attributes from Stay Order."""
+        matches = (
+            require_non_none(
+                re.search(
+                    self._regex_patterns[attr],
+                    text,
+                ),
+            ).groups()
+        )
+
+        return tuple(
+            map(
+                lambda x: str(
+                    x.replace('\n', '')
+                    .replace('  ', ' ')
+                    .strip(),
+                ), matches,
+            ),
+        )
 
     def get_author(self) -> None:
         """Return opinion author."""
@@ -230,13 +196,6 @@ class Syllabus(Opinion):
     holding: str
     alignment_str: str
 
-    # def __init__(self, text: str, petitioner: str, respondent:str,
-    #              lower_court: str, case_number: str) -> None:
-    #     super().__init__(text=remove_notice(text),
-    #                      petitioner=petitioner,
-    #                      respondent=respondent,
-    #                      lower_court=lower_court,
-    #                      case_number=case_number)
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.text = remove_notice(self.text)
@@ -293,6 +252,14 @@ class Syllabus(Opinion):
                     remove_extra_whitespace(j),
                 )
                 for j in joiners
+            ]
+        elif bool(re.search('unanimous', first_sent)):
+            self.joiners = [
+                j for j in JusticeTag
+                if j not in (
+                    self.author,
+                    JusticeTag.PER_CURIAM,
+                )
             ]
         else:
             self.joiners = None

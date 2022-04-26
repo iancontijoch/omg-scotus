@@ -13,7 +13,6 @@ from omg_scotus.opinion import StayOpinion
 from omg_scotus.order_list import DocumentList
 from omg_scotus.order_list import OpinionList
 from omg_scotus.order_list import OrderList
-from omg_scotus.order_list import OrderOpinionList
 
 
 class ParserStrategy(ABC):
@@ -28,7 +27,7 @@ class ParserStrategy(ABC):
     def get_object(self) -> Any: pass
 
 
-class OpinionParserStrategy(ParserStrategy):
+class SlipOpinionParserStrategy(ParserStrategy):
     def parse(self) -> str:
         retv = ''
         for start, end in self.msg['pdf_page_indices']:
@@ -47,9 +46,11 @@ class OpinionParserStrategy(ParserStrategy):
         lower_court = self.msg['lower_court']
         case_number = self.msg['case_number']
         is_per_curiam = self.msg['is_per_curiam']
+        stream = self.msg['stream']
 
         return [
             OpinionList(
+                stream,
                 parsed_text, date, holding, petitioner,
                 respondent, lower_court, case_number,
                 is_per_curiam,
@@ -72,7 +73,6 @@ class OrderListParserStrategy(ParserStrategy):
         formatting differences exist and are addressed.
         """
         retv: defaultdict[str, str | None] = defaultdict(lambda: None)
-        first_opinion_page = True
 
         is_misc_order = self.msg['title'] == 'Miscellaneous Order'
         is_order_list = self.msg['title'] == 'Order List'
@@ -94,18 +94,6 @@ class OrderListParserStrategy(ParserStrategy):
                     retv['orders_text'] += segment
                 else:
                     retv['orders_text'] = segment
-            else:
-                # it's an opinion page
-                segment = '\n'.join(segment.splitlines()[3:])  # omit header
-                if first_opinion_page:
-                    # transition from orders to opinions missing space before
-                    segment = '\n' + segment  # readd
-                    first_opinion_page = False
-                if 'opinions_text' in retv:
-                    retv['opinions_text'] += segment
-                else:
-                    retv['opinions_text'] = segment
-
         return retv
 
     def get_object(self) -> list[DocumentList]:
@@ -120,13 +108,36 @@ class OrderListParserStrategy(ParserStrategy):
                 date=date,
             ),
         )
-        retv.append(
-            OrderOpinionList(
-                require_non_none(parsed_dict['opinions_text']),
-                date=date,
-            ),
-        )
+
         return retv
+
+
+class OpinionRelatedToOrderStrategy(ParserStrategy):
+    def parse(self) -> str:
+        """Return Stay Order text."""
+        retv = ''
+        for start, end in self.msg['pdf_page_indices']:
+            segment = self.msg['pdf_text'][start:end]
+            retv += segment
+        return retv
+
+    def get_object(self) -> list[Any]:
+        parsed_text = self.parse()
+        date = self.msg['date']
+        holding = self.msg['holding']
+        petitioner = self.msg['petitioner']
+        respondent = self.msg['respondent']
+        lower_court = self.msg['lower_court']
+        case_number = self.msg['case_number']
+        is_per_curiam = self.msg['is_per_curiam']
+        stream = self.msg['stream']
+        return [
+            OpinionList(
+                stream, parsed_text, date, holding, petitioner,
+                respondent, lower_court, case_number,
+                is_per_curiam,
+            ),
+        ]
 
 
 class StayOrderParserStrategy(ParserStrategy):
@@ -184,8 +195,12 @@ class Parser:
                     self.parser_strategy = OrderListParserStrategy(self.msg)
             else:
                 raise NotImplementedError
-        elif self.msg['stream'] is Stream.OPINIONS:
-            self.parser_strategy = OpinionParserStrategy(self.msg)
+        elif self.msg['stream'] is Stream.SLIP_OPINIONS:
+            self.parser_strategy = SlipOpinionParserStrategy(self.msg)
+        elif self.msg['stream'] is Stream.OPINIONS_RELATING_TO_ORDERS:
+            self.parser_strategy = OpinionRelatedToOrderStrategy(self.msg)
+        else:
+            raise NotImplementedError
 
     def parse(self) -> str | defaultdict[str, str | None]:
         """Use strategy parser."""
