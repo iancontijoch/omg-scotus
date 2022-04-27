@@ -47,13 +47,14 @@ class SlipOpinionParserStrategy(ParserStrategy):
         case_number = self.msg['case_number']
         is_per_curiam = self.msg['is_per_curiam']
         stream = self.msg['stream']
+        url = self.msg['url']
 
         return [
             OpinionList(
                 stream,
                 parsed_text, date, holding, petitioner,
                 respondent, lower_court, case_number,
-                is_per_curiam,
+                is_per_curiam, url,
             ),
         ]
 
@@ -100,44 +101,46 @@ class OrderListParserStrategy(ParserStrategy):
         """Create OrderList and OrderOpinionList."""
         parsed_dict = self.parse()
         date = self.msg['date']
+        url = self.msg['url']
+        stream = self.msg['stream']
 
         retv: list[DocumentList] = []
         retv.append(
             OrderList(
                 text=require_non_none(parsed_dict['orders_text']),
-                date=date,
+                date=date, url=url, stream=stream,
             ),
         )
 
         return retv
 
 
-class OpinionRelatedToOrderStrategy(ParserStrategy):
-    def parse(self) -> str:
-        """Return Stay Order text."""
-        retv = ''
-        for start, end in self.msg['pdf_page_indices']:
-            segment = self.msg['pdf_text'][start:end]
-            retv += '\n'.join(segment.splitlines()[3:])  # omit header
-        return retv
+# class OpinionRelatedToOrderStrategy(ParserStrategy):
+#     def parse(self) -> str:
+#         """Return Stay Order text."""
+#         retv = ''
+#         for start, end in self.msg['pdf_page_indices']:
+#             segment = self.msg['pdf_text'][start:end]
+#             retv += '\n'.join(segment.splitlines()[3:])  # omit header
+#         return retv
 
-    def get_object(self) -> list[Any]:
-        parsed_text = self.parse()
-        date = self.msg['date']
-        holding = self.msg['holding']
-        petitioner = self.msg['petitioner']
-        respondent = self.msg['respondent']
-        lower_court = self.msg['lower_court']
-        case_number = self.msg['case_number']
-        is_per_curiam = self.msg['is_per_curiam']
-        stream = self.msg['stream']
-        return [
-            OpinionList(
-                stream, parsed_text, date, holding, petitioner,
-                respondent, lower_court, case_number,
-                is_per_curiam,
-            ),
-        ]
+#     def get_object(self) -> list[Any]:
+#         parsed_text = self.parse()
+#         date = self.msg['date']
+#         holding = self.msg['holding']
+#         petitioner = self.msg['petitioner']
+#         respondent = self.msg['respondent']
+#         lower_court = self.msg['lower_court']
+#         case_number = self.msg['case_number']
+#         is_per_curiam = self.msg['is_per_curiam']
+#         stream = self.msg['stream']
+#         return [
+#             OpinionList(
+#                 stream, parsed_text, date, holding, petitioner,
+#                 respondent, lower_court, case_number,
+#                 is_per_curiam,
+#             ),
+#         ]
 
 
 class StayOrderParserStrategy(ParserStrategy):
@@ -152,7 +155,7 @@ class StayOrderParserStrategy(ParserStrategy):
 
     def get_object(self) -> list[Any]:
         parsed_order = self.parse()
-        return [StayOpinion(text=parsed_order)]
+        return [StayOpinion(text=parsed_order, url=self.msg['url'])]
 
 
 class Parser:
@@ -195,10 +198,13 @@ class Parser:
                     self.parser_strategy = OrderListParserStrategy(self.msg)
             else:
                 raise NotImplementedError
-        elif self.msg['stream'] is Stream.SLIP_OPINIONS:
+        elif self.msg['stream'] in (
+            Stream.SLIP_OPINIONS,
+            Stream.OPINIONS_RELATING_TO_ORDERS,
+        ):
             self.parser_strategy = SlipOpinionParserStrategy(self.msg)
-        elif self.msg['stream'] is Stream.OPINIONS_RELATING_TO_ORDERS:
-            self.parser_strategy = OpinionRelatedToOrderStrategy(self.msg)
+        # elif self.msg['stream'] is Stream.OPINIONS_RELATING_TO_ORDERS:
+        #     self.parser_strategy = OpinionRelatedToOrderStrategy(self.msg)
         else:
             raise NotImplementedError
 

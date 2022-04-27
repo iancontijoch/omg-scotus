@@ -125,6 +125,7 @@ class OrdersFetcherStrategy(FetcherStrategy):
         retv = {
             'date': datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d'),
             'title': title,
+            'url': url,
             'pdf': read_pdf(url),
         }
         return retv
@@ -213,6 +214,7 @@ class OpinionsFetcherStrategy(FetcherStrategy):
             'case_number': case_number,
             'holding': holding,
             'is_per_curiam': author_initials == 'PC',
+            'url': url,
             'pdf': read_pdf(url),
         }
         return retv
@@ -235,7 +237,7 @@ class Stream(Enum):
 
 class Fetcher:
     stream: Stream
-    strategy: FetcherStrategy
+    strategy: type[FetcherStrategy]
     payload: str
     url: str | None
 
@@ -246,7 +248,6 @@ class Fetcher:
         self.stream = stream
         self.url = url
         self.most_recent = most_recent
-        self.payload = ''
         self.set_strategy()
 
     @classmethod
@@ -254,23 +255,23 @@ class Fetcher:
         return cls(stream=stream, url=url, most_recent=False)
 
     def get_payload(self) -> dict[str, Stream | str | pdfplumber.pdf.PDF]:
-        fs = self.strategy
+        fs = self.strategy(
+            stream=self.stream,
+            most_recent=self.most_recent,
+            url=self.url,
+        )
         retv = fs.get_payload()
         retv['stream'] = self.stream
         return retv
 
     def set_strategy(self) -> None:
         if self.stream is Stream.ORDERS:
-            self.strategy = OrdersFetcherStrategy(
-                stream=self.stream, most_recent=self.most_recent, url=self.url,
-            )
+            self.strategy = OrdersFetcherStrategy
         elif self.stream in (
             Stream.SLIP_OPINIONS,
             Stream.OPINIONS_RELATING_TO_ORDERS,
         ):
-            self.strategy = OpinionsFetcherStrategy(
-                stream=self.stream, most_recent=self.most_recent, url=self.url,
-            )
+            self.strategy = OpinionsFetcherStrategy
         else:
             raise NotImplementedError
 

@@ -21,13 +21,15 @@ from omg_scotus.order_list_section import Section
 class DocumentList(ABC):
     text: str
     date: str
+    url: str
     stream: Stream
     sections: list[Opinion | OrderListSection | Section]
 
-    def __init__(self, text: str, date: str, stream: Stream):
+    def __init__(self, text: str, date: str, stream: Stream, url: str):
         self.text = text
         self.date = date
         self.stream = stream
+        self.url = url
 
     @abstractmethod
     def get_title(self) -> str: pass
@@ -50,12 +52,13 @@ class DocumentList(ABC):
 class OpinionList(DocumentList):
     def __init__(
         self, stream: Stream,
+        url: str,
         text: str, date: str, holding: str,
         petitioner: str, respondent: str,
         lower_court: str, case_number: str,
         is_per_curiam: bool,
     ) -> None:
-        super().__init__(text=text, date=date, stream=stream)
+        super().__init__(text=text, date=date, stream=stream, url=url)
         self.holding = holding
         self.petitioner = petitioner
         self.respondent = respondent
@@ -96,7 +99,8 @@ class OpinionList(DocumentList):
                 and self.stream is Stream.SLIP_OPINIONS
             ):  # syllabus
                 syll = Syllabus(
-                    text=section_text, petitioner=self.petitioner,
+                    text=section_text, url=self.url,
+                    petitioner=self.petitioner,
                     respondent=self.respondent,
                     lower_court=self.lower_court,
                     case_number=self.case_number,
@@ -107,6 +111,7 @@ class OpinionList(DocumentList):
             elif self.stream is Stream.SLIP_OPINIONS:
                 slip = SlipOpinion(
                     text=section_text,
+                    url=self.url,
                     petitioner=self.petitioner,
                     respondent=self.respondent,
                     lower_court=self.lower_court,
@@ -120,6 +125,7 @@ class OpinionList(DocumentList):
                 self.sections.append(
                     OrderOpinion(
                         text=section_text,
+                        url=self.url,
                         petitioner=self.petitioner,
                         respondent=self.respondent,
                         lower_court=self.lower_court,
@@ -179,6 +185,7 @@ class OrderOpinionList(OpinionList):
             self.sections.append(
                 OrderOpinion(
                     text=section_text,
+                    url=self.url,
                     petitioner=self.petitioner,
                     respondent=self.respondent,
                     lower_court=self.lower_court,
@@ -213,6 +220,7 @@ class OrderList(DocumentList):
         """Return string representation of OrderList."""
         s = f'\n{self.title}\n{self.date}\n\n'
         s += f"{'ORDER LIST SUMMARY':~^{72}}"
+        s += f'\nLink  {self.url}'
         s += '\n'.join([str(s) for s in self.sections])
         return s
 

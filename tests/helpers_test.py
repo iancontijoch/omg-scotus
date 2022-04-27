@@ -85,6 +85,16 @@ joined.""", [
             ],
         ),
         ("""Statement of BREYER, J.""", [JusticeTag.BREYER]),
+        (
+            """  Statement  of  JUSTICE  ALITO,  with  whom  JUSTICE
+THOMAS, JUSTICE KAVANAUGH, and JUSTICE BARRETT join,
+respecting the denial of certiorari
+Statment of BREYER, J.""", [
+                JusticeTag.ALITO, JusticeTag.THOMAS,
+                JusticeTag.KAVANAUGH, JusticeTag.BARRETT,
+                JusticeTag.BREYER,
+            ],
+        ),
     ),
 )
 def test_get_justices_from_sent(s: str, expected: str) -> None:

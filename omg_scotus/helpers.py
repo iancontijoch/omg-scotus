@@ -117,6 +117,8 @@ def get_justices_from_sent(
     sent: str,
 ) -> list[JusticeTag]:
     """Return a list of JusticeTag from str and regex."""
+    # remove JUSTICE from the string
+    sent = re.sub(r'\bJUSTICE\b', '', sent)
     # matches any 3 or more capital letters together within word boundary.
     pattern = r'\b[A-Z]{3,}\b'
     return [

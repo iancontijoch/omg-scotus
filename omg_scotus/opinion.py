@@ -36,6 +36,7 @@ class Judgment(Enum):
 
 class Opinion(ABC):
     text: str
+    url: str
     date: str
     case_name: str
     cases: list[Case]
@@ -50,11 +51,12 @@ class Opinion(ABC):
     _regex_patterns: dict[str, str]
 
     def __init__(
-        self, text: str, petitioner: str, respondent: str,
+        self, text: str, url: str, petitioner: str, respondent: str,
         lower_court: str, case_number: str,
     ) -> None:
         """Init Opinion"""
         self.text = text
+        self.url = url
         self.joiners = None
         self.recusals = None
         self.petitioner, self.respondent = petitioner, respondent
@@ -114,6 +116,7 @@ class Opinion(ABC):
         )
         if self.court_below:
             retv += f'From:  {self.court_below}\n'
+        retv += f'\nLink:  {self.url}'
         return retv
 
 
@@ -121,12 +124,12 @@ class OrderOpinion(Opinion):
     noted_dissents: list[JusticeTag] | None
 
     def __init__(
-        self, text: str, petitioner: str, respondent: str,
+        self, text: str, url: str, petitioner: str, respondent: str,
         lower_court: str, case_number: str,
     ) -> None:
         super().__init__(
-            text, petitioner, respondent, lower_court,
-            case_number,
+            text, petitioner, respondent, lower_court, case_number,
+            url,
         )
         self.type = Opinion.get_type(self.text)
         self.noted_dissents = None
@@ -164,14 +167,13 @@ class OrderOpinion(Opinion):
 
 class StayOpinion(Opinion):
 
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, url: str) -> None:
         """Init Opinion."""
         self._regex_patterns = {
             'parties': r'(?m)(.*)\,\s+Applicant\s+v.\s+(.*$)',
             'court': r'(?s)the\smandate\sof\sthe\s(.*?)\,\scase',
             'case_num': r'\bNo.\s+([A-Z\d]+)',
         }
-        self.text = text
         petitioner, respondent = self.get_attr('parties', text)
         court_below = self.get_attr('court', text)[0]
         case_number = self.get_attr('case_num', text)[0]
@@ -180,6 +182,7 @@ class StayOpinion(Opinion):
             text=text, petitioner=petitioner,
             respondent=respondent, lower_court=court_below,
             case_number=case_number,
+            url=url,
         )
         self.type = OpinionType.STAY
 
