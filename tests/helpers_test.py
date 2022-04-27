@@ -5,9 +5,11 @@ from datetime import date
 import pytest
 
 from omg_scotus.helpers import create_docket_number
+from omg_scotus.helpers import get_justices_from_sent
 from omg_scotus.helpers import get_term_year
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import remove_hyphenation
+from omg_scotus.justice import JusticeTag
 
 
 @pytest.mark.parametrize(
@@ -68,3 +70,22 @@ Court’s jurisdiction.  See Foster v. Chatman, 578 U. S. 488,
 )
 def test_create_docket_number(s: str, expected: str) -> None:
     assert create_docket_number(s) == expected
+
+
+@pytest.mark.parametrize(
+    ('s', 'expected'),
+    (
+        (
+            """KAVANAUGH, J., delivered the opinion of the Court, in which ROBERTS,
+C. J., and THOMAS, BREYER, SOTOMAYOR, KAGAN, and GORSUCH, JJ.,
+joined.""", [
+                JusticeTag.KAVANAUGH, JusticeTag.CHIEF, JusticeTag.THOMAS,
+                JusticeTag.BREYER, JusticeTag.SOTOMAYOR, JusticeTag.KAGAN,
+                JusticeTag.GORSUCH,
+            ],
+        ),
+        ("""Statement of BREYER, J.""", [JusticeTag.BREYER]),
+    ),
+)
+def test_get_justices_from_sent(s: str, expected: str) -> None:
+    assert get_justices_from_sent(s) == expected

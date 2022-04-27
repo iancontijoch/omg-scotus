@@ -167,19 +167,19 @@ class OpinionsFetcherStrategy(FetcherStrategy):
         offset = 1 if self.stream is Stream.SLIP_OPINIONS else 0
 
         if self.url:
-            date = remove_char_from_list(
-                match[0].parent.parent.contents, '\n',
-            )[1].text
-            docket_number = remove_char_from_list(
-                match[0].parent.parent.contents, '\n',
-            )[2].text
+            contents = remove_char_from_list(
+                match[0].parent.parent.contents,
+                '\n',
+            )
+            date = contents[offset].text
+            docket_number = contents[offset+1].text
 
-            author_initials = remove_char_from_list(
-                match[0].parent.parent.contents, '\n',
-            )[5].text
-
+            author_initials = contents[offset+4].text
             title = match[0].text
-            holding = match[0]['title']
+            if 'title' in match[0].attrs:
+                holding = match[0]['title']
+            else:
+                holding = None
             url = require_non_none(self.url)
         else:
             date = match[offset].text

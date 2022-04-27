@@ -11,6 +11,8 @@ from typing import TypeVar
 import pdfplumber
 import requests
 
+from omg_scotus.justice import JusticeTag
+
 T = TypeVar('T')
 
 
@@ -109,3 +111,18 @@ def create_docket_number(string: str) -> str:
         return f'22O{match.groups()[0]}'
     else:
         return string
+
+
+def get_justices_from_sent(
+    sent: str,
+) -> list[JusticeTag]:
+    """Return a list of JusticeTag from str and regex."""
+    # matches any 3 or more capital letters together within word boundary.
+    pattern = r'\b[A-Z]{3,}\b'
+    return [
+        JusticeTag.from_string(remove_extra_whitespace(m))
+        for m in re.findall(
+            pattern,
+            sent,
+        )
+    ]

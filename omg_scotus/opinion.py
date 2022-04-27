@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any
 
 from omg_scotus.case import Case
+from omg_scotus.helpers import get_justices_from_sent
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import remove_hyphenation
 from omg_scotus.helpers import remove_notice
@@ -44,6 +45,7 @@ class Opinion(ABC):
     court_below: str | None
     author: JusticeTag
     joiners: list[JusticeTag] | None
+    recusals: list[JusticeTag] | None
     type: OpinionType
     _regex_patterns: dict[str, str]
 
@@ -54,6 +56,7 @@ class Opinion(ABC):
         """Init Opinion"""
         self.text = text
         self.joiners = None
+        self.recusals = None
         self.petitioner, self.respondent = petitioner, respondent
         self.case_number = case_number
         self.court_below = lower_court
@@ -102,6 +105,8 @@ class Opinion(ABC):
         )
         if self.joiners:
             retv += f'\nJoined by:  {self.joiners}'
+        if self.recusals:
+            retv += f'\nRecused:  {self.recusals}'
         retv += (
             f'\nType:  {self.type}'
             f'\nCase:  {self.case_name}'
@@ -113,36 +118,48 @@ class Opinion(ABC):
 
 
 class OrderOpinion(Opinion):
+    noted_dissents: list[JusticeTag] | None
 
-    # def __init__(self, text: str) -> None:
-    #     """Init Opinion."""
-    #     # self._regex_patterns = {
-    #     #     'parties': (
-    #     #         r'(?s)SUPREME COURT OF THE UNITED STATES '
-    #     #         r'\n(.*) v. (.*)ON PETITION'
-    #     #     ),
-    #     #     'court': r'(?s)\nON.*TO THE (.*?)No.',
-    #     #     'date': r'(?ms)^No\. +.*?Decided\s(.*?)$',
-    #     # }
-    #     # super().__init__(text=text)  # type: ignore
-    #     # self.type = self.get_type(text=text)
+    def __init__(
+        self, text: str, petitioner: str, respondent: str,
+        lower_court: str, case_number: str,
+    ) -> None:
+        super().__init__(
+            text, petitioner, respondent, lower_court,
+            case_number,
+        )
+        self.type = Opinion.get_type(self.text)
+        self.noted_dissents = None
 
     def get_author(self) -> None:
         """Return opinion author."""
-        # regex matches first occurrence of Justice Name/Chief Justice/Curiam
-        pattern = (
-            r'(?ms)(?:CHIEF\s+)*JUSTICE\s+[A-Z]+.+?[a-z]+\.|PER CURIAM'
+        # matches justices that would deny/grant order
+        noted_dissent_sent = re.search(
+            r'[^?!.]+(JUSTICE).+?would\s(?:grant|deny)[^?!.]+', self.text,
         )
-        first_sent = require_non_none(re.search(pattern, self.text)).group()
-        author, *joiners = re.findall(r'\b(?!CHIEF|JUSTICE)[A-Z]+', first_sent)
+        # matches justices signing on to statements
+        statement_sent = re.search(
+            r'[^.?!]+Statement.+?(?=JUSTICE)[^.?!]+', self.text,
+        )
+        # matches justices dissenting/concurring from order
+        dissent_concurr_sent = re.search(
+            r'[^.?!]+(?=JUSTICE).+?(?=dissent|concurr)[^.?!]+', self.text,
+        )
 
-        self.author = JusticeTag.from_string(remove_extra_whitespace(author))
-        self.joiners = [
-            JusticeTag.from_string(
-                remove_extra_whitespace(j),
+        if noted_dissent_sent:
+            self.noted_dissents = get_justices_from_sent(
+                noted_dissent_sent.group(),
             )
-            for j in joiners
-        ]
+
+        if dissent_concurr_sent:
+            author, *joiners = get_justices_from_sent(
+                dissent_concurr_sent.group(),
+            )
+        elif statement_sent:
+            author, *joiners = get_justices_from_sent(statement_sent.group())
+        self.author = author
+        self.joiners = joiners
+        self.type = Opinion.get_type(self.text)
 
 
 class StayOpinion(Opinion):
@@ -243,16 +260,19 @@ class Syllabus(Opinion):
         first_sent = require_non_none(
             re.search(r'(?s).+?[a-z]\.', text),
         ).group()
-        author, *joiners = re.findall(r'[A-Z]{3,}', first_sent)
+        # author, *joiners = re.findall(r'[A-Z]{3,}', first_sent)
 
-        self.author = JusticeTag.from_string(remove_extra_whitespace(author))
+        recusal_sent = re.search(
+            r'[^.?!]+\b[A-Z]{3,}.+took\s+no\s+part[^.?!]+',
+            text,
+        )
+        if recusal_sent:
+            self.recusals = get_justices_from_sent(recusal_sent.group())
+
+        author, *joiners = get_justices_from_sent(first_sent)
+        self.author = author
         if joiners:
-            self.joiners = [
-                JusticeTag.from_string(
-                    remove_extra_whitespace(j),
-                )
-                for j in joiners
-            ]
+            self.joiners = joiners
         elif bool(re.search('unanimous', first_sent)):
             self.joiners = [
                 j for j in JusticeTag

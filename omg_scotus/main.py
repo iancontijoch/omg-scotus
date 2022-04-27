@@ -44,16 +44,19 @@ def main() -> int:
         # get_doc('041822zr_11o2', Stream.ORDERS),  # misc. order OL
         # get_doc('20pdf/19-1257_new_4g15', Stream.SLIP_OPINIONS),
         # get_doc('21pdf/20-303_6khn', Stream.SLIP_OPINIONS),
-        # get_doc('21pdf/21a244_hgci', Stream.SLIP_OPINIONS),  # PC
+        get_doc('21pdf/21a244_hgci', Stream.SLIP_OPINIONS),  # PC
         # get_doc('21pdf/20-480_b97c', Stream.SLIP_OPINIONS),  # reg opinion
         # get_doc('21pdf/143orig_1qm1', Stream.SLIP_OPINIONS),  # orig
+        # get_doc('20pdf/22o65_dc8e', stream=Stream.SLIP_OPINIONS) #orig-mult
+        # get_doc('21pdf/21-145_2b82',
+        #         Stream.OPINIONS_RELATING_TO_ORDERS)  # 2 opinions
 
     ]
 
-    order = Parser(
-        Fetcher(Stream.OPINIONS_RELATING_TO_ORDERS).get_payload(),
-    ).get_object()
-    debug_orders = [order]
+    # order = Parser(
+    #     Fetcher(Stream.OPINIONS_RELATING_TO_ORDERS).get_payload(),
+    # ).get_object()
+    # debug_orders = [order]
 
     for doc in debug_orders:
         for order in doc:

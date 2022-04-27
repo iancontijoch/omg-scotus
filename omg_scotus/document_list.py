@@ -85,13 +85,9 @@ class OpinionList(DocumentList):
             flags=re.DOTALL,
         )
 
-        # the majority opinion (index 1) doesn't contain joiner info
-        # so we grab joiners from the syllabus, which does.
-
+        # the majority opinion (index 1) doesn't contain joiner/recusal info
+        # so we grab joiners and recusals from the syllabus, which does.
         # note: Per Curiams have no syllabi.
-
-        # TODO: Original opinions are being treated as Syllabi. Fix!
-        # TODO: Search for original opinions with dissents/concurrences
 
         for i, m in enumerate(matches):
             section_text = self.text[m.span()[0]: m.span()[1]]
@@ -106,6 +102,7 @@ class OpinionList(DocumentList):
                     case_number=self.case_number,
                 )
                 majority_joiners = syll.joiners
+                recusals = syll.recusals
                 self.sections.append(syll)
             elif self.stream is Stream.SLIP_OPINIONS:
                 slip = SlipOpinion(
@@ -117,6 +114,7 @@ class OpinionList(DocumentList):
                 )
                 if i == 1 and not self.is_per_curiam:
                     slip.joiners = majority_joiners
+                    slip.recusals = recusals
                 self.sections.append(slip)
             elif self.stream is Stream.OPINIONS_RELATING_TO_ORDERS:
                 self.sections.append(

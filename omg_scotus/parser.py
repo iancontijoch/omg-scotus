@@ -5,14 +5,14 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Any
 
+from omg_scotus.document_list import DocumentList
+from omg_scotus.document_list import OpinionList
+from omg_scotus.document_list import OrderList
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import StayOpinion
-from omg_scotus.order_list import DocumentList
-from omg_scotus.order_list import OpinionList
-from omg_scotus.order_list import OrderList
 
 
 class ParserStrategy(ABC):
@@ -118,7 +118,7 @@ class OpinionRelatedToOrderStrategy(ParserStrategy):
         retv = ''
         for start, end in self.msg['pdf_page_indices']:
             segment = self.msg['pdf_text'][start:end]
-            retv += segment
+            retv += '\n'.join(segment.splitlines()[3:])  # omit header
         return retv
 
     def get_object(self) -> list[Any]:

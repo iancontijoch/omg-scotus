@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 
+from omg_scotus.document_list import OrderList
 from omg_scotus.justice import create_court
 from omg_scotus.justice import Ideology
 from omg_scotus.justice import Justice
@@ -11,7 +12,6 @@ from omg_scotus.justice import JusticeTag
 from omg_scotus.justice import President
 from omg_scotus.justice import Role
 from omg_scotus.opinion import StayOpinion
-from omg_scotus.order_list import OrderList
 
 
 @pytest.fixture
