@@ -54,6 +54,7 @@ class RulesOrder(Order):
         self.get_rules()
 
     def get_bolded_text(self) -> str:
+        """Get bolded text to find Rule # and Titles."""
         return ''.join(
             [
                 c['text'] for p in self.pdf.pages[3:]
@@ -63,10 +64,18 @@ class RulesOrder(Order):
         )
 
     def get_rules(self) -> None:
+        """Create Rule from rule, title in bolded text."""
         pattern = r'Rule\s+([\d\.]+\.)(.+?)(?=Rule|$)'
         for m in re.finditer(pattern, self.get_bolded_text()):
             number, title = m.groups()
             title = remove_extra_whitespace(title)
             title = re.sub(r'\s\*', '', title)  # elim asterisks
-            rule = Rule(number=number, title=remove_extra_whitespace(title))
+            rule = Rule(number=number, title=title)
             self.rules.append(rule)
+        self.set_rule_content()
+
+    def set_rule_content(self) -> None:
+        """Set text of rule."""
+        pattern = r'(?ms)^Rule\s+[\d\.]+\.(.+?)(?=^Rule|\Z)'
+        for i, m in enumerate(re.finditer(pattern, self.text)):
+            self.rules[i].contents = m.group()
