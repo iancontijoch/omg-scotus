@@ -21,6 +21,13 @@ from omg_scotus.helpers import require_non_none
 from omg_scotus.helpers import suffix_base_url
 
 
+class Stream(Enum):
+    ORDERS = auto()
+    SLIP_OPINIONS = auto()
+    OPINIONS_RELATING_TO_ORDERS = auto()
+    DEBUG = auto()
+
+
 class FetcherStrategy(ABC):
     """Strategy to be used by Fetcher class."""
     stream: Stream
@@ -60,6 +67,9 @@ class FetcherStrategy(ABC):
         if not url:
             # We are grabbing most recent date, so get today's Term.
             term_year = get_term_year(datetime.today().date())
+        elif url.split('/')[-1].startswith('fr'):
+            # frbk22 -> 22 - 1
+            term_year = str(int(url.split('/')[-1][4:6]) - 1)
         elif url.split('/')[-3] == 'opinions':
             term_year = url.split('/')[-2][:2]
         elif url.split('/')[-3] == 'orders':
@@ -226,13 +236,6 @@ class OpinionsFetcherStrategy(FetcherStrategy):
             f'https://www.supremecourt.gov/rss/cases/json/{docket_number}.json'
         )
         return json.loads(requests.get(url).text)
-
-
-class Stream(Enum):
-    ORDERS = auto()
-    SLIP_OPINIONS = auto()
-    OPINIONS_RELATING_TO_ORDERS = auto()
-    DEBUG = auto()
 
 
 class Fetcher:

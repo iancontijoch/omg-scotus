@@ -63,8 +63,12 @@ def read_pdf(url: str) -> pdfplumber.PDF:
         return pdf
 
 
-def get_pdf_text(pdf: pdfplumber.pdf.PDF) -> str:
-    return ''.join([p.extract_text() for p in pdf.pages])
+def get_pdf_text(
+    pdf: pdfplumber.pdf.PDF, from_pg: int | None = None,
+    to_pg: int | None = None,
+) -> str:
+    """Return pdf text in PDF document pages."""
+    return ''.join([p.extract_text() for p in pdf.pages[from_pg:to_pg]])
 
 
 def is_stay_order(order_title: str, pdf: pdfplumber.pdf.PDF) -> bool:

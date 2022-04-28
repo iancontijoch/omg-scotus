@@ -29,7 +29,7 @@ def main() -> int:
 
     debug_orders = [
         # get_doc('050820zr_097c', Stream.ORDERS),  # stay
-        get_doc('040422zor_4f14', Stream.ORDERS),  # orderlist no op.
+        # get_doc('040422zor_4f14', Stream.ORDERS),  # orderlist no op.
         # get_doc('041822zor_19m2', Stream.ORDERS),  # OL 1 op.
         # get_doc('022822zor_o759', Stream.ORDERS),  # OL 2+ op.
         # get_doc('041822zr_11o2', Stream.ORDERS),  # misc. order OL
@@ -41,6 +41,7 @@ def main() -> int:
         # get_doc('20pdf/22o65_dc8e', stream=Stream.SLIP_OPINIONS) #orig-mult
         # get_doc('21pdf/21-145_2b82',
         #         Stream.OPINIONS_RELATING_TO_ORDERS)  # 2 opinions
+        get_doc('frbk22_cb8e', stream=Stream.ORDERS),  # Rules of Appellate
 
     ]
 
@@ -49,9 +50,10 @@ def main() -> int:
     # ).get_object()
     # debug_orders = [order]
 
-    for doc in debug_orders:
-        for order in doc:
-            print(order)
+    # for doc in debug_orders:
+    #     for order in doc:
+    #         print(order)
+    print(debug_orders[0])
 
     return 0
 

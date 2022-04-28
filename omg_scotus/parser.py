@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
@@ -13,6 +14,7 @@ from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import StayOpinion
+from omg_scotus.order import RulesOrder
 
 
 class ParserStrategy(ABC):
@@ -111,36 +113,7 @@ class OrderListParserStrategy(ParserStrategy):
                 date=date, url=url, stream=stream,
             ),
         )
-
         return retv
-
-
-# class OpinionRelatedToOrderStrategy(ParserStrategy):
-#     def parse(self) -> str:
-#         """Return Stay Order text."""
-#         retv = ''
-#         for start, end in self.msg['pdf_page_indices']:
-#             segment = self.msg['pdf_text'][start:end]
-#             retv += '\n'.join(segment.splitlines()[3:])  # omit header
-#         return retv
-
-#     def get_object(self) -> list[Any]:
-#         parsed_text = self.parse()
-#         date = self.msg['date']
-#         holding = self.msg['holding']
-#         petitioner = self.msg['petitioner']
-#         respondent = self.msg['respondent']
-#         lower_court = self.msg['lower_court']
-#         case_number = self.msg['case_number']
-#         is_per_curiam = self.msg['is_per_curiam']
-#         stream = self.msg['stream']
-#         return [
-#             OpinionList(
-#                 stream, parsed_text, date, holding, petitioner,
-#                 respondent, lower_court, case_number,
-#                 is_per_curiam,
-#             ),
-#         ]
 
 
 class StayOrderParserStrategy(ParserStrategy):
@@ -156,6 +129,32 @@ class StayOrderParserStrategy(ParserStrategy):
     def get_object(self) -> list[Any]:
         parsed_order = self.parse()
         return [StayOpinion(text=parsed_order, url=self.msg['url'])]
+
+
+class RulesParserStrategy(ParserStrategy):
+
+    def parse(self) -> str:
+        retv = get_pdf_text(self.msg['pdf'], 3)
+        retv = re.sub(
+            r'(?m)^\s+FEDERAL\s+RULES\s+OF\s+[A-Z]+\s+PROCEDURE\s+\d+\s+|\s+'
+            r'\d+\s+FEDERAL\s+RULES\s+OF\s+[A-Z]+\s+PROCEDURE\s+$', '', retv,
+
+        )  # eliminate footer and header
+        return retv
+
+    def get_object(self) -> RulesOrder:
+        """Create RulesOrder."""
+        text = self.parse()
+        date = self.msg['date']
+        url = self.msg['url']
+        # stream = self.msg['stream']
+        title = self.msg['title']
+        pdf = self.msg['pdf']
+
+        return RulesOrder(
+            date=date, order_title=title, url=url,
+            text=text, pdf=pdf,
+        )
 
 
 class Parser:
@@ -196,6 +195,8 @@ class Parser:
                     self.parser_strategy = StayOrderParserStrategy(self.msg)
                 else:
                     self.parser_strategy = OrderListParserStrategy(self.msg)
+            elif self.msg['title'].startswith('Rules'):
+                self.parser_strategy = RulesParserStrategy(self.msg)
             else:
                 raise NotImplementedError
         elif self.msg['stream'] in (
@@ -203,8 +204,6 @@ class Parser:
             Stream.OPINIONS_RELATING_TO_ORDERS,
         ):
             self.parser_strategy = SlipOpinionParserStrategy(self.msg)
-        # elif self.msg['stream'] is Stream.OPINIONS_RELATING_TO_ORDERS:
-        #     self.parser_strategy = OpinionRelatedToOrderStrategy(self.msg)
         else:
             raise NotImplementedError
 
