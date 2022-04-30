@@ -36,6 +36,11 @@ class Rule():
         self.number = number
         self.title = title
 
+    def __str__(self) -> str:
+        retv = f'Rule: {self.number:<{7}} {self.title}\n'
+        # retv += self.contents
+        return retv
+
 
 class RulesOrder(Order):
     rules: list[Rule]
@@ -80,3 +85,15 @@ class RulesOrder(Order):
         pattern = r'(?ms)^Rule\s+[\d\.]+\.(.+?)(?=^Rule|\Z)'
         for i, m in enumerate(re.finditer(pattern, self.text)):
             self.rules[i].contents = m.group()
+
+    def __str__(self) -> str:
+        retv = ''
+        retv += f'{self.date}\n'
+        retv += f'{"~"*72}\n'
+        retv += (
+            f'{self.order_title.upper()}:  {len(self.rules)} rules '
+            f'affected\n'
+        )
+        retv += f'{"~"*72}\n'
+        retv += ''.join([str(r) for r in self.rules])
+        return retv

@@ -92,8 +92,11 @@ def main() -> int:
     # ]
 
     for doc in debug_orders:
-        for order in doc:
-            print(order)
+        if isinstance(doc, list):
+            for order in doc:
+                print(order)
+        else:
+            print(doc)
     # print(debug_orders[0])
 
     return 0
