@@ -65,6 +65,7 @@ class RulesOrder(Order):
 
     def get_rules(self) -> None:
         """Create Rule from rule, title in bolded text."""
+        # find text between ^Rule
         pattern = r'Rule\s+([\d\.]+\.)(.+?)(?=Rule|$)'
         for m in re.finditer(pattern, self.get_bolded_text()):
             number, title = m.groups()

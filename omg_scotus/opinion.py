@@ -115,7 +115,7 @@ class Opinion(ABC):
             f'\nNo.:  {self.case_number}\n'
         )
         if self.court_below:
-            retv += f'From:  {self.court_below}\n'
+            retv += f'\nFrom:  {self.court_below}'
         retv += f'\nLink:  {self.url}'
         return retv
 
@@ -128,8 +128,8 @@ class OrderOpinion(Opinion):
         lower_court: str, case_number: str,
     ) -> None:
         super().__init__(
-            text, petitioner, respondent, lower_court, case_number,
-            url,
+            text=text, petitioner=petitioner, respondent=respondent,
+            lower_court=lower_court, case_number=case_number, url=url,
         )
         self.type = Opinion.get_type(self.text)
         self.noted_dissents = None

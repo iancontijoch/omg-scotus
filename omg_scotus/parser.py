@@ -53,10 +53,11 @@ class SlipOpinionParserStrategy(ParserStrategy):
 
         return [
             OpinionList(
-                stream,
-                parsed_text, date, holding, petitioner,
-                respondent, lower_court, case_number,
-                is_per_curiam, url,
+                stream=stream, date=date,
+                url=url, text=parsed_text, holding=holding,
+                petitioner=petitioner, respondent=respondent,
+                lower_court=lower_court, case_number=case_number,
+                is_per_curiam=is_per_curiam,
             ),
         ]
 

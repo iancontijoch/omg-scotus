@@ -6,6 +6,8 @@ from abc import abstractmethod
 from typing import Any
 
 from omg_scotus._enums import OrderListSectionType
+from omg_scotus.document_section import OrderListSection
+from omg_scotus.document_section import Section
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import require_non_none
@@ -14,8 +16,6 @@ from omg_scotus.opinion import OpinionType
 from omg_scotus.opinion import OrderOpinion
 from omg_scotus.opinion import SlipOpinion
 from omg_scotus.opinion import Syllabus
-from omg_scotus.order_list_section import OrderListSection
-from omg_scotus.order_list_section import Section
 
 
 class DocumentList(ABC):

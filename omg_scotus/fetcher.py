@@ -17,6 +17,7 @@ from omg_scotus.helpers import create_docket_number
 from omg_scotus.helpers import get_term_year
 from omg_scotus.helpers import read_pdf
 from omg_scotus.helpers import remove_char_from_list
+from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import require_non_none
 from omg_scotus.helpers import suffix_base_url
 
@@ -125,7 +126,7 @@ class OrdersFetcherStrategy(FetcherStrategy):
             url = require_non_none(self.url)
 
         else:
-            date = match.text.strip()
+            date = match[0].text.strip()
             title = match[1].text.strip()
             url = (
                 f'https://www.supremecourt.gov/'
@@ -221,7 +222,7 @@ class OpinionsFetcherStrategy(FetcherStrategy):
             'petitioner': petitioner,
             'respondent': respondent,
             'lower_court': lower_court,
-            'case_number': case_number,
+            'case_number': remove_extra_whitespace(case_number),
             'holding': holding,
             'is_per_curiam': author_initials == 'PC',
             'url': url,
