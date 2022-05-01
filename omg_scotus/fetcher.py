@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from abc import ABC
 from abc import abstractmethod
 from datetime import datetime
@@ -166,6 +167,10 @@ class OpinionsFetcherStrategy(FetcherStrategy):
                     },
                 ),
             )
+            if len(match) == 0:
+                raise ValueError(
+                    f'URL {self.url} did not match any documents.',
+                )
         else:
             match = remove_char_from_list(
                 self.soup.find_all('tr')[2].contents, '\n',
@@ -207,14 +212,28 @@ class OpinionsFetcherStrategy(FetcherStrategy):
                 f"{match[offset+2].next['href']}"
             )
 
+        # Strip case 21-588 (21A85) -> 21-588
         docket_json = self.get_docket_json(
-            create_docket_number(docket_number),
+            create_docket_number(re.sub(r'\s\(.+\)', '', docket_number)),
         )
 
         petitioner = docket_json['PetitionerTitle']
         respondent = docket_json['RespondentTitle']
         lower_court = docket_json['LowerCourt']
         case_number = docket_json['CaseNumber']
+        disposition_text = [
+            entry['Text'] for entry in docket_json['ProceedingsandOrder']
+            if bool(
+                re.search(
+                    r'AFFIRMED|DISMISSED|REMANDED|REVERSED|VACATED',
+                    entry['Text'],
+                ),
+            )
+        ]
+        if len(disposition_text) > 1:
+            raise ValueError('Multiple matches for disposition entries.')
+        else:
+            disposition_text = disposition_text[0]
 
         retv = {
             'date': datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d'),
@@ -224,6 +243,7 @@ class OpinionsFetcherStrategy(FetcherStrategy):
             'lower_court': lower_court,
             'case_number': remove_extra_whitespace(case_number),
             'holding': holding,
+            'disposition_text': disposition_text,
             'is_per_curiam': author_initials == 'PC',
             'url': url,
             'pdf': read_pdf(url),

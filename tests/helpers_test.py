@@ -4,7 +4,10 @@ from datetime import date
 
 import pytest
 
+from omg_scotus._enums import Disposition
+from omg_scotus.document_list import OpinionList
 from omg_scotus.helpers import create_docket_number
+from omg_scotus.helpers import get_disposition_type
 from omg_scotus.helpers import get_justices_from_sent
 from omg_scotus.helpers import get_term_year
 from omg_scotus.helpers import remove_extra_whitespace
@@ -99,3 +102,33 @@ Statment of BREYER, J.""", [
 )
 def test_get_justices_from_sent(s: str, expected: str) -> None:
     assert get_justices_from_sent(s) == expected
+
+
+@pytest.mark.parametrize(
+    ('s', 'expected'),
+    (
+        (
+            'Adjudged to be AFFIRMED IN PART, REVERSED IN PART, and case REMANDED.',
+            [
+                Disposition.AFFIRMED_IN_PART, Disposition.REVERSED_IN_PART,
+                Disposition.REMANDED,
+            ],
+        ),
+        (
+            'Judgment REVERSED and case REMANDED.', [
+                Disposition.REVERSED,
+                Disposition.REMANDED,
+            ],
+        ),
+        (
+            'Writ of certiorari DISMISSED as improvidently granted.',
+            [Disposition.DISMISSED_AS_IMPROVIDENTLY_GRANTED],
+        ),
+        (
+            'Petition GRANTED.  Determination of United States Court of Appeals for the Ninth Circuit that Rivas-Villegas is not entitled to qualified immunity REVERSED.',
+            [Disposition.REVERSED],
+        ),
+    ),
+)
+def test_get_disposition_type(s, expected):
+    assert get_disposition_type(s) == expected

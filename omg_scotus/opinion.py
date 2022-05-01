@@ -27,13 +27,6 @@ class OpinionType(Enum):
     MAJORITY = auto()
 
 
-class Judgment(Enum):
-    AFFIRMED = auto()
-    REVERSED = auto()
-    REMANDED = auto()
-    DISMISSED_AS_IMPROVIDENTLY_GRANTED = auto()
-
-
 class Opinion(ABC):
     text: str
     url: str

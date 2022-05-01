@@ -49,3 +49,17 @@ class OrderType(Enum):
     MISCELLANEOUS_ORDER = auto()
     STAY_ORDER = auto()
     RULES_ORDER = auto()
+
+
+class Disposition(Enum):
+    AFFIRMED = auto()
+    AFFIRMED_IN_PART = auto()
+    DISMISSED = auto()
+    DISMISSED_AS_IMPROVIDENTLY_GRANTED = auto()
+    DISMISSED_FOR_WANT_OF_JURISDICTION = auto()
+    REMANDED = auto()
+    REMANDED_IN_PART = auto()
+    REVERSED = auto()
+    REVERSED_IN_PART = auto()
+    VACATED = auto()
+    VACATED_IN_PART = auto()

@@ -5,10 +5,12 @@ from abc import ABC
 from abc import abstractmethod
 from typing import Any
 
+from omg_scotus._enums import Disposition
 from omg_scotus._enums import OrderListSectionType
 from omg_scotus.document_section import OrderListSection
 from omg_scotus.document_section import Section
 from omg_scotus.fetcher import Stream
+from omg_scotus.helpers import get_disposition_type
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import Opinion
@@ -50,16 +52,20 @@ class DocumentList(ABC):
 
 
 class OpinionList(DocumentList):
+    dispositions: list[Disposition]
+
     def __init__(
         self, stream: Stream,
         url: str,
         text: str, date: str, holding: str,
+        disposition_text: str,
         petitioner: str, respondent: str,
         lower_court: str, case_number: str,
         is_per_curiam: bool,
     ) -> None:
         super().__init__(text=text, date=date, stream=stream, url=url)
         self.holding = holding
+        self.disposition_text = disposition_text
         self.petitioner = petitioner
         self.respondent = respondent
         self.lower_court = lower_court
@@ -68,6 +74,7 @@ class OpinionList(DocumentList):
         self.title = self.get_title()
         self.sections = []
         self.get_sections()
+        self.dispositions = get_disposition_type(self.disposition_text)
 
     def get_title(self) -> str:
         """Return Overall Case Name"""

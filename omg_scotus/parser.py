@@ -43,6 +43,7 @@ class SlipOpinionParserStrategy(ParserStrategy):
         parsed_text = self.parse()
         date = self.msg['date']
         holding = self.msg['holding']
+        disposition_text = self.msg['disposition_text']
         petitioner = self.msg['petitioner']
         respondent = self.msg['respondent']
         lower_court = self.msg['lower_court']
@@ -55,6 +56,7 @@ class SlipOpinionParserStrategy(ParserStrategy):
             OpinionList(
                 stream=stream, date=date,
                 url=url, text=parsed_text, holding=holding,
+                disposition_text=disposition_text,
                 petitioner=petitioner, respondent=respondent,
                 lower_court=lower_court, case_number=case_number,
                 is_per_curiam=is_per_curiam,

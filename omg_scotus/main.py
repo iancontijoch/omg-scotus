@@ -70,9 +70,9 @@ def main() -> int:
             order = Parser(
                 Fetcher(get_stream(args)).get_payload(),
             ).get_object()
-            debug_orders = [order]
+            debug_docs = [order]
         else:
-            debug_orders = [get_doc(option, get_stream(args))]
+            debug_docs = [get_doc(option, get_stream(args))]
 
     # debug_orders = [
     #     # get_doc('050820zr_097c', Stream.ORDERS),  # stay
@@ -91,13 +91,12 @@ def main() -> int:
     #     # get_doc('frbk22_cb8e', stream=Stream.ORDERS),  # Rules of Appellate
     # ]
 
-    for doc in debug_orders:
+    for doc in debug_docs:
         if isinstance(doc, list):
-            for order in doc:
-                print(order)
+            for subdoc in doc:
+                print(subdoc)
         else:
             print(doc)
-    # print(debug_orders[0])
 
     return 0
 

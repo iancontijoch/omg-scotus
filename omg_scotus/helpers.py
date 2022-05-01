@@ -11,6 +11,7 @@ from typing import TypeVar
 import pdfplumber
 import requests
 
+from omg_scotus._enums import Disposition
 from omg_scotus.justice import JusticeTag
 
 T = TypeVar('T')
@@ -132,3 +133,47 @@ def get_justices_from_sent(
             sent,
         )
     ]
+
+
+def get_disposition_type(string: str) -> list[Disposition]:
+    """Return Disposition from holding text."""
+
+    # # AFFIRMED
+    # r'(AFFIRMED(?!\s+IN\s+PART))'
+    # # AFFIRMED IN PART
+    # r'(AFFIRMED\s+IN\s+PART)'
+    # # DISMISSED
+    # r'DISMISSED(?!\s+IN\s+PART|\s+AS\s+IMPROVIDENTLY\s+GRANTED)'
+    # # DISMISSED IN PART
+    # r'(DISMISSED\s+IN\s+PART)'
+    # # DISMISSED_AS_IMPROVIDENTLY_GRANTED
+    # r'(DISMISSED\s+AS\s+IMPROVIDENTLY\s+GRANTED)'
+    # # DISMISSED_FOR_WANT_OF_JURISDICTION
+    # r'(DISMISSED\s+FOR\s+WANT\s+OF\s+JURISDICTION)'
+    # # REMANDED
+    # r'(REMANDED(?!\s+IN\s+PART))'
+    # # REMANDED_IN_PART
+    # r'(REMANDED\s+IN\s+PART)'
+    # # REVERSED
+    # r'(REVERSED(?!\s+IN\s+PART))'
+    # # REVERSED_IN_PART
+    # r'(REVERSED\s+IN\s+PART)'
+    # # VACATED
+    # r'(VACATED(?!\s+IN\s+PART))'
+    # # VACATED_IN_PART
+    # r'(VACATED\s+IN\s+PART)'
+    retv = []
+    d = {i: disposition for i, disposition in enumerate(Disposition)}
+    p = (
+        r'(AFFIRMED(?!\s+IN\s+PART))|(AFFIRMED\s+IN\s+PART)|DISMISSED(?!\s'
+        r'+IN\s+PART|\s+as\s+improvidently\s+granted)|(DISMISSED\s+IN\s+'
+        r'PART)|(DISMISSED\s+as\s+improvidently\s+granted)|(DISMISSED\s+'
+        r'for\s+want\s+of\s+jurisdiction)|(REMANDED(?!\s+IN\s+PART))|(REM'
+        r'ANDED\s+IN\s+PART)|(REVERSED(?!\s+IN\s+PART))|(REVERSED\s+IN\s+P'
+        r'ART)|(VACATED(?!\s+IN\s+PART))|(VACATED\s+IN\s+PART)'
+    )
+    for m in re.finditer(p, string):
+        for i, _ in enumerate(m.groups()):
+            if _:
+                retv.append(d[i])
+    return retv
