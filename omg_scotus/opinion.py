@@ -25,6 +25,7 @@ class OpinionType(Enum):
     SYLLABUS = auto()
     PLURALITY = auto()
     MAJORITY = auto()
+    PER_CURIAM = auto()
 
 
 class Opinion(ABC):
@@ -84,7 +85,7 @@ class Opinion(ABC):
             SYLLABUS_PATTERN: OpinionType.SYLLABUS,
             PLURALITY_PATTERN: OpinionType.PLURALITY,
             MAJORITY_PATTERN: OpinionType.MAJORITY,
-            PER_CURIAM_PATTERN: OpinionType.MAJORITY,
+            PER_CURIAM_PATTERN: OpinionType.PER_CURIAM,
         }
 
         text = remove_hyphenation(text)  # remove artifacts

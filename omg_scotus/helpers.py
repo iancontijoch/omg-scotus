@@ -118,12 +118,23 @@ def create_docket_number(string: str) -> str:
         return string
 
 
+def remove_justice_titles(string: str) -> str:
+    """Removes JUSTICE, J., J. J., C . J ."""
+    pattern = (
+        r'\,\s*J\s*\.\,|\,\s*J\s*J\s*\.\,|\,\s*C\s*\.\s*J\s*\.\,|'
+        r'JUSTICE\s+|CHIEF\s+'
+    )
+    return re.sub(pattern, '', string)
+
+
 def get_justices_from_sent(
     sent: str,
 ) -> list[JusticeTag]:
     """Return a list of JusticeTag from str and regex."""
-    # remove JUSTICE from the string
-    sent = re.sub(r'\bJUSTICE\b', '', sent)
+    sent = remove_hyphenation(sent)
+    sent = remove_justice_titles(sent)
+    if bool(re.search(r'\bPER\s+CURIAM', sent)):
+        return [JusticeTag.PER_CURIAM]
     # matches any 3 or more capital letters together within word boundary.
     pattern = r'\b[A-Z]{3,}\b'
     return [

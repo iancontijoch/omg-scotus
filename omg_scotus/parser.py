@@ -7,7 +7,6 @@ from collections import defaultdict
 from typing import Any
 
 from omg_scotus.document_list import DocumentList
-from omg_scotus.document_list import OpinionList
 from omg_scotus.document_list import OrderList
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_pdf_text
@@ -15,6 +14,7 @@ from omg_scotus.helpers import is_stay_order
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import StayOpinion
 from omg_scotus.order import RulesOrder
+from omg_scotus.release import SlipOpinion
 
 
 class ParserStrategy(ABC):
@@ -39,7 +39,7 @@ class SlipOpinionParserStrategy(ParserStrategy):
             raise ValueError('No opinion text was parsed.')
         return retv
 
-    def get_object(self) -> list[DocumentList]:
+    def get_object(self) -> SlipOpinion:
         parsed_text = self.parse()
         date = self.msg['date']
         holding = self.msg['holding']
@@ -49,19 +49,17 @@ class SlipOpinionParserStrategy(ParserStrategy):
         lower_court = self.msg['lower_court']
         case_number = self.msg['case_number']
         is_per_curiam = self.msg['is_per_curiam']
-        stream = self.msg['stream']
+        # stream = self.msg['stream']
         url = self.msg['url']
 
-        return [
-            OpinionList(
-                stream=stream, date=date,
-                url=url, text=parsed_text, holding=holding,
-                disposition_text=disposition_text,
-                petitioner=petitioner, respondent=respondent,
-                lower_court=lower_court, case_number=case_number,
-                is_per_curiam=is_per_curiam,
-            ),
-        ]
+        return SlipOpinion(
+            date=date,
+            url=url, text=parsed_text, holding=holding,
+            disposition_text=disposition_text,
+            petitioner=petitioner, respondent=respondent,
+            lower_court=lower_court, case_number=case_number,
+            is_per_curiam=is_per_curiam,
+        )
 
 
 class OrderListParserStrategy(ParserStrategy):

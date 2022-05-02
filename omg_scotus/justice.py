@@ -65,7 +65,9 @@ class JusticeTag(Enum):
             'BARRETT': JusticeTag.BARRETT,
         }
         if s not in d:
-            raise NotImplementedError
+            raise NotImplementedError(
+                f'String {s} not recognized as a Justice.',
+            )
         else:
             return d[s]
 
