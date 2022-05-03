@@ -9,6 +9,7 @@ import pdfplumber
 from omg_scotus._enums import Disposition
 from omg_scotus._enums import DocumentType
 from omg_scotus._enums import OrderSectionType
+from omg_scotus._enums import RulesType
 from omg_scotus.helpers import get_disposition_type
 from omg_scotus.helpers import get_justices_from_sent
 from omg_scotus.helpers import remove_extra_whitespace
@@ -266,13 +267,27 @@ class RuleOrder(Document):
     rules: list[Rule]
     pdf: pdfplumber.pdf.PDF
     title: str
+    type: RulesType
 
     def __init__(self, text: str, pdf: pdfplumber.pdf.PDF, title: str) -> None:
         super().__init__(text)
         self.pdf = pdf
         self.title = title
         self.rules = []
+        self.get_type()
         self.get_rules()
+
+    def get_type(self) -> RulesType:
+        if bool(re.search('bankruptcy', self.title.lower())):
+            return RulesType.RULES_OF_BANKRUPTCY_PROCEDURE
+        elif bool(re.search('appellate', self.title.lower())):
+            return RulesType.RULES_OF_APPELLATE_PROCEDURE
+        elif bool(re.search('civil', self.title.lower())):
+            return RulesType.RULES_OF_CIVIL_PROCEDURE
+        elif bool(re.search('criminal', self.title.lower())):
+            return RulesType.RULES_OF_CRIMINAL_PROCEDURE
+        else:
+            raise NotImplementedError
 
     def get_bolded_text(self) -> str:
         """Get bolded text to find Rule # and Titles."""
