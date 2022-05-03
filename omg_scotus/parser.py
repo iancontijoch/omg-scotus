@@ -6,21 +6,25 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Any
 
-from omg_scotus.document_list import DocumentList
-from omg_scotus.document_list import OrderList
+from omg_scotus._enums import DocumentType
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_pdf_text
 from omg_scotus.helpers import is_stay_order
 from omg_scotus.helpers import require_non_none
 from omg_scotus.opinion import StayOpinion
-from omg_scotus.order import RulesOrder
+from omg_scotus.release import OpinionRelatingToOrder
+from omg_scotus.release import OrderRelease
+from omg_scotus.release import Release
 from omg_scotus.release import SlipOpinion
 
 
 class ParserStrategy(ABC):
 
-    def __init__(self, msg: dict[str, Any]) -> None:
+    def __init__(
+        self, msg: dict[str, Any], document_type: DocumentType,
+    ) -> None:
         self.msg = msg
+        self.document_type = document_type
 
     @abstractmethod
     def parse(self) -> str | defaultdict[str, str | None]: pass
@@ -29,7 +33,7 @@ class ParserStrategy(ABC):
     def get_object(self) -> Any: pass
 
 
-class SlipOpinionParserStrategy(ParserStrategy):
+class OpinionParserStrategy(ParserStrategy):
     def parse(self) -> str:
         retv = ''
         for start, end in self.msg['pdf_page_indices']:
@@ -39,7 +43,7 @@ class SlipOpinionParserStrategy(ParserStrategy):
             raise ValueError('No opinion text was parsed.')
         return retv
 
-    def get_object(self) -> SlipOpinion:
+    def get_object(self) -> Release:
         parsed_text = self.parse()
         date = self.msg['date']
         holding = self.msg['holding']
@@ -49,17 +53,33 @@ class SlipOpinionParserStrategy(ParserStrategy):
         lower_court = self.msg['lower_court']
         case_number = self.msg['case_number']
         is_per_curiam = self.msg['is_per_curiam']
-        # stream = self.msg['stream']
         url = self.msg['url']
 
-        return SlipOpinion(
-            date=date,
-            url=url, text=parsed_text, holding=holding,
-            disposition_text=disposition_text,
-            petitioner=petitioner, respondent=respondent,
-            lower_court=lower_court, case_number=case_number,
-            is_per_curiam=is_per_curiam,
-        )
+        if self.document_type is DocumentType.SLIP_OPINION:
+            return SlipOpinion(
+                date=date,
+                url=url,
+                text=parsed_text,
+                document_type=self.document_type,
+                holding=holding,
+                disposition_text=disposition_text,
+                petitioner=petitioner, respondent=respondent,
+                lower_court=lower_court, case_number=case_number,
+                is_per_curiam=is_per_curiam,
+            )
+        elif self.document_type is DocumentType.OPINION_RELATING_TO_ORDERS:
+            return OpinionRelatingToOrder(
+                date=date,
+                text=parsed_text,
+                case_number=case_number,
+                url=url,
+                document_type=self.document_type,
+                petitioner=petitioner,
+                respondent=respondent,
+                lower_court=lower_court,
+            )
+        else:
+            raise NotImplementedError('DocumentType not expected for Opinion.')
 
 
 class OrderListParserStrategy(ParserStrategy):
@@ -100,18 +120,21 @@ class OrderListParserStrategy(ParserStrategy):
                     retv['orders_text'] = segment
         return retv
 
-    def get_object(self) -> list[DocumentList]:
+    def get_object(self) -> list[Release]:
         """Create OrderList and OrderOpinionList."""
         parsed_dict = self.parse()
         date = self.msg['date']
         url = self.msg['url']
-        stream = self.msg['stream']
+        title = self.msg['title']
+        pdf = self.msg['pdf']
+        document_type = self.document_type
 
-        retv: list[DocumentList] = []
+        retv: list[Release] = []
         retv.append(
-            OrderList(
+            OrderRelease(
                 text=require_non_none(parsed_dict['orders_text']),
-                date=date, url=url, stream=stream,
+                date=date, url=url, title=title, document_type=document_type,
+                pdf=pdf,
             ),
         )
         return retv
@@ -143,30 +166,31 @@ class RulesParserStrategy(ParserStrategy):
         )  # eliminate footer and header
         return retv
 
-    def get_object(self) -> RulesOrder:
+    def get_object(self) -> Release:
         """Create RulesOrder."""
         text = self.parse()
         date = self.msg['date']
         url = self.msg['url']
-        # stream = self.msg['stream']
         title = self.msg['title']
         pdf = self.msg['pdf']
 
-        return RulesOrder(
-            date=date, order_title=title, url=url,
-            text=text, pdf=pdf,
+        return OrderRelease(
+            date=date, title=title, url=url,
+            text=text, pdf=pdf, document_type=self.document_type,
         )
 
 
 class Parser:
     """Accept Fetcher payload and determine strategy"""
     parser_strategy: ParserStrategy
+    document_type: DocumentType
 
     def __init__(
         self,
         msg: dict[str, Any],
     ) -> None:
         self.msg = msg
+        self.document_type = self.set_document_type()
         self.msg['pdf_text'] = get_pdf_text(self.msg['pdf'])
         self.msg['pdf_page_indices'] = self.get_pdf_page_indices()
         self.set_parser_strategy()
@@ -182,31 +206,110 @@ class Parser:
             start += pg_len
         return retv
 
-    def set_parser_strategy(self) -> None:
-        """Set parser strategy depending on payload received.
-        """
+    def set_document_type(self) -> DocumentType:
+        """Set document type for parsing strategy to consume."""
         if self.msg['stream'] is Stream.ORDERS:
             if self.msg['title'] == 'Order List':
-                self.parser_strategy = OrderListParserStrategy(self.msg)
+                return DocumentType.ORDER_LIST
             elif self.msg['title'] == 'Miscellaneous Order':
                 if is_stay_order(
                     order_title=self.msg['title'],
                     pdf=self.msg['pdf'],
                 ):
-                    self.parser_strategy = StayOrderParserStrategy(self.msg)
+                    return DocumentType.STAY_ORDER
                 else:
-                    self.parser_strategy = OrderListParserStrategy(self.msg)
+                    return DocumentType.ORDER_LIST
             elif self.msg['title'].startswith('Rules'):
-                self.parser_strategy = RulesParserStrategy(self.msg)
+                return DocumentType.RULES_ORDER
             else:
                 raise NotImplementedError
-        elif self.msg['stream'] in (
-            Stream.SLIP_OPINIONS,
-            Stream.OPINIONS_RELATING_TO_ORDERS,
-        ):
-            self.parser_strategy = SlipOpinionParserStrategy(self.msg)
+        elif self.msg['stream'] is Stream.SLIP_OPINIONS:
+            return DocumentType.SLIP_OPINION
+        elif self.msg['stream'] is Stream.OPINIONS_RELATING_TO_ORDERS:
+            return DocumentType.OPINION_RELATING_TO_ORDERS
         else:
             raise NotImplementedError
+
+    def set_parser_strategy(self) -> None:
+        """Set parser strategy depending on payload received.
+        """
+        if self.document_type in (
+            DocumentType.ORDER_LIST,
+            DocumentType.MISCELLANEOUS_ORDER,
+        ):
+            self.parser_strategy = OrderListParserStrategy(
+                self.msg,
+                self.document_type,
+            )
+        elif self.document_type is DocumentType.STAY_ORDER:
+            self.parser_strategy = StayOrderParserStrategy(
+                self.msg,
+                self.document_type,
+            )
+        elif self.document_type is DocumentType.RULES_ORDER:
+            self.parser_strategy = RulesParserStrategy(
+                self.msg,
+                self.document_type,
+            )
+        elif self.document_type in (
+            DocumentType.SLIP_OPINION,
+            DocumentType.OPINION_RELATING_TO_ORDERS,
+        ):
+            self.parser_strategy = OpinionParserStrategy(
+                self.msg,
+                self.document_type,
+            )
+        else:
+            raise NotImplementedError
+
+        # if self.msg['stream'] is Stream.ORDERS:
+        #     if self.msg['title'] == 'Order List':
+        #         self.parser_strategy = OrderListParserStrategy(self.msg)
+        #     elif self.msg['title'] == 'Miscellaneous Order':
+        #         if is_stay_order(
+        #             order_title=self.msg['title'],
+        #             pdf=self.msg['pdf'],
+        #         ):
+        #             self.parser_strategy = StayOrderParserStrategy(self.msg)
+        #         else:
+        #             self.parser_strategy = OrderListParserStrategy(self.msg)
+        #     elif self.msg['title'].startswith('Rules'):
+        #         self.parser_strategy = RulesParserStrategy(self.msg)
+        #     else:
+        #         raise NotImplementedError
+        # elif self.msg['stream'] in (
+        #     Stream.SLIP_OPINIONS,
+        #     Stream.OPINIONS_RELATING_TO_ORDERS,
+        # ):
+        #     self.parser_strategy = SlipOpinionParserStrategy(self.msg)
+        # else:
+        #     raise NotImplementedError
+
+    # def set_parser_strategy(self) -> None:
+    #     """Set parser strategy depending on payload received.
+    #     """
+    #     if self.msg['stream'] is Stream.ORDERS:
+    #         if self.msg['title'] == 'Order List':
+    #             self.parser_strategy = OrderListParserStrategy(self.msg)
+    #         elif self.msg['title'] == 'Miscellaneous Order':
+    #             if is_stay_order(
+    #                 order_title=self.msg['title'],
+    #                 pdf=self.msg['pdf'],
+    #             ):
+    #                 self.parser_strategy = StayOrderParserStrategy(self.msg)
+    #             else:
+    #                 self.parser_strategy = OrderListParserStrategy(self.msg)
+    #         elif self.msg['title'].startswith('Rules'):
+    #             self.parser_strategy = RulesParserStrategy(self.msg)
+    #         else:
+    #             raise NotImplementedError
+    #     elif self.msg['stream'] in (
+    #         Stream.SLIP_OPINIONS,
+    #         Stream.OPINIONS_RELATING_TO_ORDERS,
+    #     ):
+    #         self.parser_strategy = SlipOpinionParserStrategy(self.msg)
+    #     else:
+    #         raise NotImplementedError
 
     def parse(self) -> str | defaultdict[str, str | None]:
         """Use strategy parser."""

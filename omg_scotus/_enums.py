@@ -4,7 +4,7 @@ from enum import auto
 from enum import Enum
 
 
-class OrderListSectionType(Enum):
+class OrderSectionType(Enum):
 
     CERTIORARI_SUMMARY_DISPOSITIONS = auto()
     ORDERS_IN_PENDING_CASES = auto()
@@ -15,24 +15,24 @@ class OrderListSectionType(Enum):
     REHEARINGS_DENIED = auto()
 
     @staticmethod
-    def from_string(label: str) -> OrderListSectionType:
+    def from_string(label: str) -> OrderSectionType:
         if label in (
             'CERTIORARI -- SUMMARY DISPOSITIONS',
             'CERTIORARI -- SUMMARY DISPOSITION',
         ):
-            return OrderListSectionType.CERTIORARI_SUMMARY_DISPOSITIONS
+            return OrderSectionType.CERTIORARI_SUMMARY_DISPOSITIONS
         elif label in ('ORDERS IN PENDING CASES', 'ORDER IN PENDING CASE'):
-            return OrderListSectionType.ORDERS_IN_PENDING_CASES
+            return OrderSectionType.ORDERS_IN_PENDING_CASES
         elif label == 'CERTIORARI GRANTED':
-            return OrderListSectionType.CERTIORARI_GRANTED
+            return OrderSectionType.CERTIORARI_GRANTED
         elif label == 'CERTIORARI DENIED':
-            return OrderListSectionType.CERTIORARI_DENIED
+            return OrderSectionType.CERTIORARI_DENIED
         elif label == 'HABEAS CORPUS DENIED':
-            return OrderListSectionType.HABEAS_CORPUS_DENIED
+            return OrderSectionType.HABEAS_CORPUS_DENIED
         elif label == 'MANDAMUS DENIED':
-            return OrderListSectionType.MANDAMUS_DENIED
+            return OrderSectionType.MANDAMUS_DENIED
         elif label in ('REHEARINGS DENIED', 'REHEARING DENIED'):
-            return OrderListSectionType.REHEARINGS_DENIED
+            return OrderSectionType.REHEARINGS_DENIED
         else:
             raise NotImplementedError
 
@@ -51,6 +51,15 @@ class OrderType(Enum):
     RULES_ORDER = auto()
 
 
+class DocumentType(Enum):
+    ORDER_LIST = auto()
+    MISCELLANEOUS_ORDER = auto()
+    STAY_ORDER = auto()
+    RULES_ORDER = auto()
+    SLIP_OPINION = auto()
+    OPINION_RELATING_TO_ORDERS = auto()
+
+
 class Disposition(Enum):
     AFFIRMED = auto()
     AFFIRMED_IN_PART = auto()
@@ -63,3 +72,4 @@ class Disposition(Enum):
     REVERSED_IN_PART = auto()
     VACATED = auto()
     VACATED_IN_PART = auto()
+    GRANTED = auto()

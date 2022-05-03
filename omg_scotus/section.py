@@ -27,7 +27,7 @@ class Section(ABC):
         pass
 
 
-class OrderListSection(Section):
+class OrderSection(Section):
 
     def get_cases(self) -> None:
         """Get all cases in Section."""
@@ -57,7 +57,3 @@ class OrderListSection(Section):
             f'{(num_cases > 1 or num_cases == 0)*"s"}'
             f'\n{"-"*72}\n{cases_text}\n{"-"*72}\n'
         )
-
-
-class OrderOpinionSection(Section):
-    pass

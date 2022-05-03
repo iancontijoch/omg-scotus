@@ -6,9 +6,7 @@ from abc import abstractmethod
 from typing import Any
 
 from omg_scotus._enums import Disposition
-from omg_scotus._enums import OrderListSectionType
-from omg_scotus.document_section import OrderListSection
-from omg_scotus.document_section import Section
+from omg_scotus._enums import OrderSectionType
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_disposition_type
 from omg_scotus.helpers import remove_extra_whitespace
@@ -18,6 +16,8 @@ from omg_scotus.opinion import OpinionType
 from omg_scotus.opinion import OrderOpinion
 from omg_scotus.opinion import SlipOpinion
 from omg_scotus.opinion import Syllabus
+from omg_scotus.section import OrderSection
+from omg_scotus.section import Section
 
 
 class DocumentList(ABC):
@@ -25,7 +25,7 @@ class DocumentList(ABC):
     date: str
     url: str
     stream: Stream
-    sections: list[Opinion | OrderListSection | Section]
+    sections: list[Opinion | OrderSection | Section]
 
     def __init__(self, text: str, date: str, stream: Stream, url: str):
         self.text = text
@@ -253,9 +253,9 @@ class OrderList(DocumentList):
                 m.groups()[0],
             ), m.groups()[1]  # remove whitespace noise
 
-            section = OrderListSection(
+            section = OrderSection(
                 label=section_title,
-                type=OrderListSectionType.from_string(
+                type=OrderSectionType.from_string(
                     section_title,
                 ),
                 text=section_content,

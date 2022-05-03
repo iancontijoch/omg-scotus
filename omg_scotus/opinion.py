@@ -95,22 +95,20 @@ class Opinion(ABC):
         raise NotImplementedError
 
     def __str__(self) -> str:
-        retv = (
-            f'\n{"-"*72}\nOPINION SUMMARY: {self.type}\n{"-"*72}'
-            f'\nAuthor:  {self.author}'
-        )
+        retv = f"\n\n{'OPINION SUMMARY':~^{72}}\n"
+        retv += f'Link:  {self.url}\n{"-"*72}\n'
+        retv += f'Author:  {self.author}\n'
         if self.joiners:
-            retv += f'\nJoined by:  {self.joiners}'
+            retv += f'Joined by:  {self.joiners}\n'
         if self.recusals:
-            retv += f'\nRecused:  {self.recusals}'
+            retv += f'Recused:  {self.recusals}\n'
         retv += (
-            f'\nType:  {self.type}'
-            f'\nCase:  {self.case_name}'
-            f'\nNo.:  {self.case_number}\n'
+            f'Type:  {self.type}\n'
+            f'Case:  {self.case_name}\n'
+            f'No.:  {self.case_number}\n'
         )
         if self.court_below:
-            retv += f'\nFrom:  {self.court_below}'
-        retv += f'\nLink:  {self.url}'
+            retv += f'From:  {self.court_below}\n'
         return retv
 
 

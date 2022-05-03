@@ -221,19 +221,26 @@ class OpinionsFetcherStrategy(FetcherStrategy):
         respondent = docket_json['RespondentTitle']
         lower_court = docket_json['LowerCourt']
         case_number = docket_json['CaseNumber']
-        disposition_text = [
-            entry['Text'] for entry in docket_json['ProceedingsandOrder']
-            if bool(
-                re.search(
-                    r'AFFIRMED|DISMISSED|REMANDED|REVERSED|VACATED',
-                    entry['Text'],
-                ),
-            )
-        ]
-        if len(disposition_text) > 1:
-            raise ValueError('Multiple matches for disposition entries.')
+        if self.stream is Stream.SLIP_OPINIONS:
+            disposition_text = [
+                entry['Text'] for entry in docket_json['ProceedingsandOrder']
+                if bool(
+                    re.search(
+                        r'AFFIRMED|DISMISSED|REMANDED|REVERSED|VACATED',
+                        entry['Text'],
+                    ),
+                )
+            ]
+            if len(disposition_text) > 1:
+                raise ValueError('Multiple matches for disposition entries.')
+            elif len(disposition_text) == 0:  # applications for stays
+                disposition_text = (
+                    docket_json['ProceedingsandOrder'][-1]['Text']
+                )
+            else:
+                disposition_text = disposition_text[0]
         else:
-            disposition_text = disposition_text[0]
+            disposition_text = None
 
         retv = {
             'date': datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d'),
