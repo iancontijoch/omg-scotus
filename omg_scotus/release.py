@@ -85,7 +85,10 @@ class OpinionDocument(Document, ABC):
     def set_authorship(self, sent: str) -> None:
         author, *joiners = get_justices_from_sent(sent)
         self.author = author
-        if joiners:
+
+        if joiners == [None]:  # If it happened to match a retired justice
+            self.joiners = None
+        elif joiners:
             self.joiners = joiners
         elif bool(re.search('unanimous', sent)):
             self.joiners = [
@@ -132,7 +135,7 @@ class Syllabus(OpinionDocument):
         """Parse first sentence of attribution sentence and set authorship."""
         # first sentence before the word 'filed'
         pattern = (
-            r'(?s).*?(?=\.[^.!?]+filed)'
+            r'(?s).*?(?=\.[^.!?]+filed|unanimous)'
         )
         sent = require_non_none(
             re.search(pattern, self._attribution_sentence),

@@ -22,7 +22,7 @@ def get_doc(id: str, stream: Stream) -> Any:
     else:
         raise NotImplementedError
     fr = Fetcher.from_url(url, stream)
-    pr = Parser(fr.get_payload())
+    pr = Parser(fr.get_payload()[0])
     return pr.get_object()
 
 
@@ -67,10 +67,11 @@ def main() -> int:
 
     if option:
         if option == 'nourl':
-            order = Parser(
-                Fetcher(get_stream(args)).get_payload(),
-            ).get_object()
-            debug_docs = [order]
+            debug_docs = []
+            payloads = Fetcher(get_stream(args), date='5/16/22').get_payload()
+            for payload in payloads:
+                order = Parser(payload).get_object()
+                debug_docs.append(order)
         else:
             debug_docs = [get_doc(option, get_stream(args))]
 

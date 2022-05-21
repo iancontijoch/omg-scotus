@@ -34,6 +34,7 @@ class FetcherStrategy(ABC):
     """Strategy to be used by Fetcher class."""
     stream: Stream
     most_recent: bool
+    date: str | None
     url: str | None
     base_url: str
     soup: bs4.BeautifulSoup
@@ -41,6 +42,7 @@ class FetcherStrategy(ABC):
     def __init__(
         self,
         stream: Stream,
+        date: str | None,
         most_recent: bool = False,
         url: str | None = None,
 
@@ -48,6 +50,7 @@ class FetcherStrategy(ABC):
         self.stream = stream
         self.most_recent = most_recent
         self.url = url
+        self.date = date
         self.base_url = self.set_base_url()
         self.soup = self.get_soup()
 
@@ -92,7 +95,7 @@ class FetcherStrategy(ABC):
     def get_contents(self) -> BeautifulSoup.contents: pass
 
     @abstractmethod
-    def get_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+    def get_payload(self) -> list[dict[str, str | pdfplumber.pdf.PDF]]:
         pass
 
 
@@ -116,7 +119,7 @@ class OrdersFetcherStrategy(FetcherStrategy):
             )[0].contents[1].find_all('span')
         return match
 
-    def get_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
+    def get_payload(self) -> list[dict[str, str | pdfplumber.pdf.PDF]]:
         match = self.get_contents()
 
         if self.url:
@@ -140,7 +143,7 @@ class OrdersFetcherStrategy(FetcherStrategy):
             'url': url,
             'pdf': read_pdf(url),
         }
-        return retv
+        return [retv]
 
     def get_url_for_term(self) -> None:
         """Get URL with Term Year suffix."""
@@ -157,7 +160,7 @@ class OpinionsFetcherStrategy(FetcherStrategy):
 
     def get_contents(self) -> BeautifulSoup.contents:
         if self.url:
-            match: BeautifulSoup.contents = require_non_none(
+            matches: list[BeautifulSoup.contents] = require_non_none(
                 self.soup.find_all(
                     attrs={
                         'href': require_non_none(self.url).replace(
@@ -167,94 +170,119 @@ class OpinionsFetcherStrategy(FetcherStrategy):
                     },
                 ),
             )
-            if len(match) == 0:
+            if len(matches) == 0:
                 raise ValueError(
                     f'URL {self.url} did not match any documents.',
                 )
         else:
-            match = remove_char_from_list(
-                self.soup.find_all('tr')[2].contents, '\n',
-            )
-        return match
-
-    def get_payload(self) -> dict[str, str | pdfplumber.pdf.PDF]:
-
-        match = self.get_contents()
-        # Slip Opinions have an extra column with an R number.
-        offset = 1 if self.stream is Stream.SLIP_OPINIONS else 0
-
-        if self.url:
-            contents = remove_char_from_list(
-                match[0].parent.parent.contents,
-                '\n',
-            )
-            date = contents[offset].text
-            docket_number = contents[offset+1].text
-
-            author_initials = contents[offset+4].text
-            title = match[0].text
-            if 'title' in match[0].attrs:
-                holding = match[0]['title']
-            else:
-                holding = None
-            url = require_non_none(self.url)
-        else:
-            date = match[offset].text
-            docket_number = match[offset+1].text
-            title = match[offset+2].text.strip()
-            author_initials = match[offset+4].text.strip()
-            if self.stream is Stream.SLIP_OPINIONS:
-                holding = match[offset+2].contents[0]['title']
-            else:
-                holding = None
-            url = (
-                f'https://www.supremecourt.gov'
-                f"{match[offset+2].next['href']}"
-            )
-
-        # Strip case 21-588 (21A85) -> 21-588
-        docket_json = self.get_docket_json(
-            create_docket_number(re.sub(r'\s\(.+\)', '', docket_number)),
-        )
-
-        petitioner = docket_json['PetitionerTitle']
-        respondent = docket_json['RespondentTitle']
-        lower_court = docket_json['LowerCourt']
-        case_number = docket_json['CaseNumber']
-        if self.stream is Stream.SLIP_OPINIONS:
-            disposition_text = [
-                entry['Text'] for entry in docket_json['ProceedingsandOrder']
-                if bool(
-                    re.search(
-                        r'AFFIRMED|DISMISSED|REMANDED|REVERSED|VACATED',
-                        entry['Text'],
+            if self.most_recent:  # get latest (topmost) row
+                matches = [
+                    remove_char_from_list(
+                        self.soup.find_all('tr')[2], '\n',
                     ),
-                )
-            ]
-            if len(disposition_text) > 1:
-                raise ValueError('Multiple matches for disposition entries.')
-            elif len(disposition_text) == 0:  # applications for stays
-                disposition_text = (
-                    docket_json['ProceedingsandOrder'][-1]['Text']
-                )
-            else:
-                disposition_text = disposition_text[0]
-        else:
-            disposition_text = None
+                ]
+            else:  # get all rows with the date
+                matches = [
+                    el for el in self.soup.find_all(['tr'])
+                    if el.contents[3].text == self.date
+                ]
+        return matches
 
-        retv = {
-            'date': datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d'),
-            'title': title,
-            'petitioner': petitioner,
-            'respondent': respondent,
-            'lower_court': lower_court,
-            'case_number': remove_extra_whitespace(case_number),
-            'holding': holding,
-            'disposition_text': disposition_text,
-            'is_per_curiam': author_initials == 'PC',
-            'url': url,
-            'pdf': read_pdf(url),
-        }
+    def get_payload(self) -> list[dict[str, str | pdfplumber.pdf.PDF]]:
+        retv = []
+        matches = self.get_contents()
+        for match in matches:
+            # Slip Opinions have an extra column with an R number.
+            offset = 1 if self.stream is Stream.SLIP_OPINIONS else 0
+            if self.url is not None or self.date is not None:
+                if self.url is not None:
+                    contents = remove_char_from_list(
+                        match.parent.parent.contents,
+                        '\n',
+                    )
+                    url = require_non_none(self.url)
+                else:
+                    contents = remove_char_from_list(
+                        match.contents,
+                        '\n',
+                    )
+                    url = (
+                        f'https://www.supremecourt.gov'
+                        f"{contents[offset+2].next['href']}"
+                    )
+                date = contents[offset].text
+                docket_number = contents[offset+1].text
+
+                author_initials = contents[offset+4].text
+                title = match.text
+                if 'title' in match.attrs:
+                    holding = match['title']
+                else:
+                    holding = None
+            else:
+                contents = match
+                date = contents[offset].text
+                docket_number = contents[offset+1].text
+                title = contents[offset+2].text.strip()
+                author_initials = contents[offset+4].text.strip()
+                if self.stream is Stream.SLIP_OPINIONS:
+                    holding = contents[offset+2].contents[0]['title']
+                else:
+                    holding = None
+                url = (
+                    f'https://www.supremecourt.gov'
+                    f"{contents[offset+2].next['href']}"
+                )
+
+            # Strip case 21-588 (21A85) -> 21-588
+            docket_json = self.get_docket_json(
+                create_docket_number(re.sub(r'\s\(.+\)', '', docket_number)),
+            )
+
+            petitioner = docket_json['PetitionerTitle']
+            respondent = docket_json['RespondentTitle']
+            lower_court = docket_json['LowerCourt']
+            case_number = docket_json['CaseNumber']
+            if self.stream is Stream.SLIP_OPINIONS:
+                disposition_text = [
+                    entry['Text']
+                    for entry in docket_json['ProceedingsandOrder']
+                    if bool(
+                        re.search(
+                            r'AFFIRMED|DISMISSED|REMANDED|REVERSED|VACATED',
+                            entry['Text'],
+                        ),
+                    )
+                ]
+                if len(disposition_text) > 1:
+                    raise ValueError(
+                        'Multiple matches for disposition entries.',
+                    )
+                elif len(disposition_text) == 0:  # applications for stays
+                    disposition_text = (
+                        docket_json['ProceedingsandOrder'][-1]['Text']
+                    )
+                else:
+                    disposition_text = disposition_text[0]
+            else:
+                disposition_text = None
+
+            d = {
+                'date': (
+                    datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d')
+                ),
+                'title': title,
+                'petitioner': petitioner,
+                'respondent': respondent,
+                'lower_court': lower_court,
+                'case_number': remove_extra_whitespace(case_number),
+                'holding': holding,
+                'disposition_text': disposition_text,
+                'is_per_curiam': author_initials == 'PC',
+                'url': url,
+                'pdf': read_pdf(url),
+            }
+            retv.append(d)
         return retv
 
     @staticmethod
@@ -271,28 +299,35 @@ class Fetcher:
     strategy: type[FetcherStrategy]
     payload: str
     url: str | None
+    date: str | None
+    most_recent: bool
 
     def __init__(
-        self, stream: Stream,
-        url: str | None = None, most_recent: bool = True,
+        self, stream: Stream, date: str | None = None,
+        url: str | None = None,
     ) -> None:
         self.stream = stream
         self.url = url
-        self.most_recent = most_recent
+        self.date = date
+        self.most_recent = self.date is None
         self.set_strategy()
 
     @classmethod
     def from_url(cls, url: str, stream: Stream) -> Fetcher:
-        return cls(stream=stream, url=url, most_recent=False)
+        return cls(stream=stream, url=url)
 
-    def get_payload(self) -> dict[str, Stream | str | pdfplumber.pdf.PDF]:
+    def get_payload(
+        self,
+    ) -> list[dict[str, Stream | str | pdfplumber.pdf.PDF]]:
         fs = self.strategy(
             stream=self.stream,
             most_recent=self.most_recent,
             url=self.url,
+            date=self.date,
         )
         retv = fs.get_payload()
-        retv['stream'] = self.stream
+        for d in retv:
+            d['stream'] = self.stream
         return retv
 
     def set_strategy(self) -> None:
