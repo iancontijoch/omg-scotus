@@ -68,7 +68,7 @@ def main() -> int:
     if option:
         if option == 'nourl':
             debug_docs = []
-            payloads = Fetcher(get_stream(args), date='5/16/22').get_payload()
+            payloads = Fetcher(get_stream(args), date=None).get_payload()
             for payload in payloads:
                 order = Parser(payload).get_object()
                 debug_docs.append(order)
