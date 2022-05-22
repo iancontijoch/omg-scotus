@@ -25,7 +25,7 @@ def require_non_none(x: T | None) -> T:
 
 
 def get_term_year(dt: date) -> str:
-    """Return Term Year given a date
+    """Return Term Year given a date in XX format.
 
     The U.S. Supreme Court's term begins on the first Monday in October and
     goes through the Sunday before the first Monday in October of the
