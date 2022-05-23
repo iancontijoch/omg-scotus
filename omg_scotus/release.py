@@ -57,7 +57,10 @@ class Document(ABC):
 
     def __init__(self, text: str) -> None:
         self.text = text
-    pass
+
+    @abstractmethod
+    def compose_tweet(self) -> str:
+        pass
 
 
 class OpinionDocument(Document, ABC):
@@ -142,6 +145,9 @@ class Syllabus(OpinionDocument):
         ).group()
         self.set_authorship(sent)
 
+    def compose_tweet(self) -> str:
+        pass
+
 
 class Opinion(OpinionDocument):
     """Opinion belonging to a case."""
@@ -180,6 +186,9 @@ class Opinion(OpinionDocument):
             if self.joiners:
                 retv += f'\nJoined by:  {self.joiners}'
         return retv
+
+    def compose_tweet(self) -> str:
+        pass
 
     @staticmethod
     def get_type(text: str) -> OpinionType:
@@ -261,6 +270,10 @@ class OrderList(Document):
             for case in section.cases
         ]
 
+    def compose_tweet(self) -> str:
+        """Return tweetable summary."""
+        return ''.join(s.compose_tweet() for s in self.sections)
+
     def __str__(self) -> str:
         """Return string representation of OrderList."""
         return '\n'.join([str(s) for s in self.sections])
@@ -330,6 +343,9 @@ class RuleOrder(Document):
         retv += f'{"~"*72}\n'
         retv += ''.join([str(r) for r in self.rules])
         return retv
+
+    def compose_tweet(self) -> str:
+        pass
 
 
 class SlipOpinion(Release):
@@ -531,4 +547,11 @@ class OrderRelease(Release):
         s += f"{'ORDER SUMMARY':~^{72}}"
         s += f'\nLink  {self.url}'
         s += f'{self.document}'
+        return s
+
+    def compose_tweet(self) -> str:
+        """Return tweetable summary."""
+        s = f'{self.title} ({self.date})\n'
+        s += f'{self.document.compose_tweet()}\n\n'
+        s += f'{self.url}'
         return s

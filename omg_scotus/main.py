@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 from typing import Any
+from typing import Sequence
 
 from omg_scotus.fetcher import Fetcher
 from omg_scotus.fetcher import Stream
 from omg_scotus.parser import Parser
+from omg_scotus.tweet import TwitterPublisher
 
 
 def get_doc(id: str, stream: Stream) -> Any:
@@ -37,7 +39,7 @@ def get_stream(args: Any) -> Stream:
         raise NotImplementedError
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description='Run omg-scotus!')
 
@@ -55,7 +57,7 @@ def main() -> int:
         help='fetch latest opinion relating to orders.',
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.orders:
         option = args.orders
     elif args.slip:
@@ -92,10 +94,13 @@ def main() -> int:
     #     # get_doc('frbk22_cb8e', stream=Stream.ORDERS),  # Rules of Appellate
     # ]
 
+    tp = TwitterPublisher()
+
     for doc in debug_docs:
         if isinstance(doc, list):
             for subdoc in doc:
                 print(subdoc)
+                tp.post_tweet(text=subdoc.compose_tweet())
         else:
             print(doc)
 

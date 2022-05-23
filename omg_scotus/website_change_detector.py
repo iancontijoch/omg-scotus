@@ -1,13 +1,14 @@
-# Implementation of Website checker
 import datetime
 import hashlib
 import time
+from typing import Any
 
 import bs4
 import requests
 
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_term_year
+from omg_scotus.main import main
 
 
 class ChangeDetector:
@@ -15,13 +16,26 @@ class ChangeDetector:
     url: str
     watch_element: bs4.BeautifulSoup
     scrape_interval: int
+    main_args: Any | None
 
     def __init__(self, stream: Stream, scrape_interval: int = 30):
         self.stream = stream
+        self.main_args = self.set_main_args()
         self.url = self.set_url()
         self.response = self.get_response()
         self.watch_element = self.set_watch_element()
         self.scrape_interval = scrape_interval
+
+    def set_main_args(self) -> Any | None:
+        """Set args to be passed onto main function at change detection."""
+        if self.stream is Stream.ORDERS:
+            return ('-o',)
+        elif self.stream is Stream.SLIP_OPINIONS:
+            return ('-s',)
+        elif self.stream is Stream.OPINIONS_RELATING_TO_ORDERS:
+            return ('-r',)
+        else:
+            raise NotImplementedError
 
     def set_url(self) -> str:
         """Set URL."""
@@ -62,8 +76,10 @@ class ChangeDetector:
             self.watch_element.text.encode('utf-8'),
         ).hexdigest()
 
-    def start_detection(self) -> bool:
-        """Detect whether an element has had a change."""
+    def start_detection(self) -> None:
+        """Detect whether an element has had a change, and execute main
+        function depending on the stream that changed.
+        """
         print(f'\nMonitoring {self.stream}...\n')
         hash = self.get_hash()
         while True:
@@ -74,14 +90,8 @@ class ChangeDetector:
                 if hash == new_hash:
                     continue
                 else:
-                    print('CHANGE DETECTED!!!')
+                    main(argv=self.main_args)
+                    break
 
             except Exception:
                 raise ValueError
-
-
-cd1 = ChangeDetector(stream=Stream.OPINIONS_RELATING_TO_ORDERS)
-cd2 = ChangeDetector(stream=Stream.ORDERS)
-
-# cd1.start_detection()
-cd2.start_detection()
