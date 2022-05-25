@@ -56,6 +56,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         '-r', '--relating', nargs='?', const='nourl',
         help='fetch latest opinion relating to orders.',
     )
+    parser.add_argument(
+        '-t', '--tweet', action='store_true',
+    )
 
     # Parse args
     args = parser.parse_args(argv)
@@ -86,10 +89,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if isinstance(doc, list):
             for subdoc in doc:
                 print(subdoc)
-                tp.post_tweet(text=subdoc.compose_tweet())
+                if args.tweet:
+                    tp.post_tweet(text=subdoc.compose_tweet())
         else:
             print(doc)
-            tp.post_tweet(text=doc.compose_tweet())
+            if args.tweet:
+                tp.post_tweet(text=doc.compose_tweet())
 
     return 0
 

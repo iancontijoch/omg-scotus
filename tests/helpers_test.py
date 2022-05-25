@@ -5,7 +5,6 @@ from datetime import date
 import pytest
 
 from omg_scotus._enums import Disposition
-from omg_scotus.document_list import OpinionList
 from omg_scotus.helpers import create_docket_number
 from omg_scotus.helpers import get_disposition_type
 from omg_scotus.helpers import get_justices_from_sent
