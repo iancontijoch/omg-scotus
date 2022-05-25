@@ -1,7 +1,7 @@
 import datetime
 import hashlib
 import time
-from typing import Any
+from typing import Tuple
 
 import beepy
 import bs4
@@ -17,7 +17,7 @@ class ChangeDetector:
     url: str
     watch_element: bs4.BeautifulSoup
     scrape_interval: int
-    main_args: Any | None
+    main_args: Tuple[str]
 
     def __init__(self, stream: Stream, scrape_interval: int = 30):
         self.stream = stream
@@ -27,7 +27,7 @@ class ChangeDetector:
         self.watch_element = self.set_watch_element()
         self.scrape_interval = scrape_interval
 
-    def set_main_args(self) -> Any | None:
+    def set_main_args(self) -> Tuple[str]:
         """Set args to be passed onto main function at change detection."""
         if self.stream is Stream.ORDERS:
             return ('-o',)
