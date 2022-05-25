@@ -262,55 +262,6 @@ class Parser:
         else:
             raise NotImplementedError
 
-        # if self.msg['stream'] is Stream.ORDERS:
-        #     if self.msg['title'] == 'Order List':
-        #         self.parser_strategy = OrderListParserStrategy(self.msg)
-        #     elif self.msg['title'] == 'Miscellaneous Order':
-        #         if is_stay_order(
-        #             order_title=self.msg['title'],
-        #             pdf=self.msg['pdf'],
-        #         ):
-        #             self.parser_strategy = StayOrderParserStrategy(self.msg)
-        #         else:
-        #             self.parser_strategy = OrderListParserStrategy(self.msg)
-        #     elif self.msg['title'].startswith('Rules'):
-        #         self.parser_strategy = RulesParserStrategy(self.msg)
-        #     else:
-        #         raise NotImplementedError
-        # elif self.msg['stream'] in (
-        #     Stream.SLIP_OPINIONS,
-        #     Stream.OPINIONS_RELATING_TO_ORDERS,
-        # ):
-        #     self.parser_strategy = SlipOpinionParserStrategy(self.msg)
-        # else:
-        #     raise NotImplementedError
-
-    # def set_parser_strategy(self) -> None:
-    #     """Set parser strategy depending on payload received.
-    #     """
-    #     if self.msg['stream'] is Stream.ORDERS:
-    #         if self.msg['title'] == 'Order List':
-    #             self.parser_strategy = OrderListParserStrategy(self.msg)
-    #         elif self.msg['title'] == 'Miscellaneous Order':
-    #             if is_stay_order(
-    #                 order_title=self.msg['title'],
-    #                 pdf=self.msg['pdf'],
-    #             ):
-    #                 self.parser_strategy = StayOrderParserStrategy(self.msg)
-    #             else:
-    #                 self.parser_strategy = OrderListParserStrategy(self.msg)
-    #         elif self.msg['title'].startswith('Rules'):
-    #             self.parser_strategy = RulesParserStrategy(self.msg)
-    #         else:
-    #             raise NotImplementedError
-    #     elif self.msg['stream'] in (
-    #         Stream.SLIP_OPINIONS,
-    #         Stream.OPINIONS_RELATING_TO_ORDERS,
-    #     ):
-    #         self.parser_strategy = SlipOpinionParserStrategy(self.msg)
-    #     else:
-    #         raise NotImplementedError
-
     def parse(self) -> str | defaultdict[str, str | None]:
         """Use strategy parser."""
         ps = self.parser_strategy

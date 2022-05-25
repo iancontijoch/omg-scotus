@@ -7,6 +7,7 @@ from enum import Enum
 
 from omg_scotus.case import Case
 from omg_scotus.helpers import remove_extra_whitespace
+# from omg_scotus._enums import OrderSectionType
 
 
 class Section(ABC):
@@ -20,16 +21,20 @@ class Section(ABC):
         self.type = type
         self.text = text
         self.cases = []
-        self.get_cases()
+        self.set_cases()
 
     @abstractmethod
-    def get_cases(self) -> None:
+    def set_cases(self) -> None:
+        pass
+
+    @abstractmethod
+    def compose_tweet(self) -> str:
         pass
 
 
 class OrderSection(Section):
 
-    def get_cases(self) -> None:
+    def set_cases(self) -> None:
         """Get all cases in Section."""
         pattern = r'(\d+.*?\d|\d+.*?ORIG\.)\s+(.*?V.*?$|IN\s+RE.*?$)'
         matches = re.findall(pattern=pattern, string=self.text, flags=re.M)
@@ -42,18 +47,38 @@ class OrderSection(Section):
             for m in matches
         ]
 
-    def __str__(self) -> str:
-        """Print all cases in Section."""
-        cases_text = 'No cases.'
+    def get_cases_text(self) -> tuple[int, list[str]]:
+        """Get number of cases and case listing."""
+        cases_text = ['No cases.']
         num_cases = 0
         if len(self.cases) > 0:
             num_cases = len(self.cases)
-            cases_text = '\n'.join(
-                ['  '.join([c.number, c.name]).strip() for c in self.cases],
-            )
+            cases_text = [
+                '  '.join([c.number, c.name]).strip()
+                for c in self.cases
+            ]
+
+        return num_cases, cases_text
+
+    def compose_tweet(self) -> str:
+        """Return tweetable summary."""
+        num_cases, cases_text = self.get_cases_text()
+        # cases_text = '  *  ' + '\n  *  '.join(cases_text)
+        s = (
+            f'\n{self.label}: {num_cases} case'
+            f'{(num_cases > 1 or num_cases == 0)*"s"}'
+        )
+        # if self.type is OrderSectionType.CERTIORARI_GRANTED:
+        #     s += f'\n{cases_text}'
+        return s
+
+    def __str__(self) -> str:
+        """Print all cases in Section."""
+        num_cases, cases_text = self.get_cases_text()
+        cases_string = '\n'.join(cases_text)
         return (
             f'\n{"-"*72}'
             f'\n{self.label}: {num_cases} case'
             f'{(num_cases > 1 or num_cases == 0)*"s"}'
-            f'\n{"-"*72}\n{cases_text}\n{"-"*72}\n'
+            f'\n{"-"*72}\n{cases_string}\n{"-"*72}\n'
         )

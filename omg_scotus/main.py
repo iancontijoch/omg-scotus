@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 from typing import Any
+from typing import Sequence
 
 from omg_scotus.fetcher import Fetcher
 from omg_scotus.fetcher import Stream
 from omg_scotus.parser import Parser
+from omg_scotus.tweet import TwitterPublisher
 
 
 def get_doc(id: str, stream: Stream) -> Any:
@@ -22,7 +24,7 @@ def get_doc(id: str, stream: Stream) -> Any:
     else:
         raise NotImplementedError
     fr = Fetcher.from_url(url, stream)
-    pr = Parser(fr.get_payload())
+    pr = Parser(fr.get_payload()[0])
     return pr.get_object()
 
 
@@ -37,7 +39,7 @@ def get_stream(args: Any) -> Stream:
         raise NotImplementedError
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description='Run omg-scotus!')
 
@@ -55,7 +57,8 @@ def main() -> int:
         help='fetch latest opinion relating to orders.',
     )
 
-    args = parser.parse_args()
+    # Parse args
+    args = parser.parse_args(argv)
     if args.orders:
         option = args.orders
     elif args.slip:
@@ -65,38 +68,28 @@ def main() -> int:
     else:
         raise NotImplementedError
 
+    # Fetch and parse releases
     if option:
         if option == 'nourl':
-            order = Parser(
-                Fetcher(get_stream(args)).get_payload(),
-            ).get_object()
-            debug_docs = [order]
+            docs = []
+            payloads = Fetcher(get_stream(args), date=None).get_payload()
+            for payload in payloads:
+                order = Parser(payload).get_object()
+                docs.append(order)
         else:
-            debug_docs = [get_doc(option, get_stream(args))]
+            docs = [get_doc(option, get_stream(args))]
 
-    # debug_orders = [
-    #     # get_doc('050820zr_097c', Stream.ORDERS),  # stay
-    #     # get_doc('040422zor_4f14', Stream.ORDERS),  # orderlist no op.
-    #     # get_doc('041822zor_19m2', Stream.ORDERS),  # OL 1 op.
-    #     # get_doc('022822zor_o759', Stream.ORDERS),  # OL 2+ op.
-    #     # get_doc('041822zr_11o2', Stream.ORDERS),  # misc. order OL
-    #     # get_doc('20pdf/19-1257_new_4g15', Stream.SLIP_OPINIONS),
-    #     # get_doc('21pdf/20-303_6khn', Stream.SLIP_OPINIONS),
-    #     # get_doc('21pdf/21a244_hgci', Stream.SLIP_OPINIONS),  # PC
-    #     # get_doc('21pdf/20-480_b97c', Stream.SLIP_OPINIONS),  # reg opinion
-    #     # get_doc('21pdf/143orig_1qm1', Stream.SLIP_OPINIONS),  # orig
-    #     # get_doc('20pdf/22o65_dc8e', stream=Stream.SLIP_OPINIONS) #orig-mult
-    #     # get_doc('21pdf/21-145_2b82',
-    #     #         Stream.OPINIONS_RELATING_TO_ORDERS)  # 2 opinions
-    #     # get_doc('frbk22_cb8e', stream=Stream.ORDERS),  # Rules of Appellate
-    # ]
+    tp = TwitterPublisher()
 
-    for doc in debug_docs:
+    # Print releases and tweet out summaries.
+    for doc in docs:
         if isinstance(doc, list):
             for subdoc in doc:
                 print(subdoc)
+                tp.post_tweet(text=subdoc.compose_tweet())
         else:
             print(doc)
+            tp.post_tweet(text=doc.compose_tweet())
 
     return 0
 
