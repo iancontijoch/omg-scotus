@@ -50,6 +50,10 @@ class Release(ABC):
     @abstractmethod
     def set_documents(self) -> None: pass
 
+    @abstractmethod
+    def compose_tweet(self) -> str:
+        pass
+
 
 class Document(ABC):
     """Any type of document included in a release."""
@@ -177,18 +181,18 @@ class Opinion(OpinionDocument):
 
     def __str__(self) -> str:
         """Print Opinion Summary."""
-        retv = f'\n{"-"*40}\nOPINION: {self.type}\n{"-"*40}'
+        retv = f'\n{"-"*40}\nOPINION: {self.type.name}\n{"-"*40}'
         if self.type is OpinionType.STATEMENT:
-            retv += f'\nAuthor:  {self.joiners}'
+            retv += f'\nAuthor:  {self.author.name}'
             return retv
         else:
-            retv += f'\nAuthor:  {self.author}'
+            retv += f'\nAuthor:  {self.author.name}'
             if self.joiners:
-                retv += f'\nJoined by:  {self.joiners}'
+                retv += (
+                    f'\nJoined by:  '
+                    f'{", ".join([s.name for s in self.joiners])}'
+                )
         return retv
-
-    def compose_tweet(self) -> str:
-        pass
 
     @staticmethod
     def get_type(text: str) -> OpinionType:
@@ -214,6 +218,9 @@ class Opinion(OpinionDocument):
             if bool(re.search(k, text)):
                 return v
         raise NotImplementedError
+
+    def compose_tweet(self) -> str:
+        pass
 
 
 class OrderList(Document):
@@ -284,11 +291,16 @@ class RuleOrder(Document):
     pdf: pdfplumber.pdf.PDF
     title: str
     type: RulesType
+    url: str
 
-    def __init__(self, text: str, pdf: pdfplumber.pdf.PDF, title: str) -> None:
+    def __init__(
+        self, text: str, pdf: pdfplumber.pdf.PDF, title: str,
+        url: str,
+    ) -> None:
         super().__init__(text)
         self.pdf = pdf
         self.title = title
+        self.url = url
         self.rules = []
         self.get_type()
         self.get_rules()
@@ -345,7 +357,15 @@ class RuleOrder(Document):
         return retv
 
     def compose_tweet(self) -> str:
-        pass
+        s = (
+            f'NEW RULES:\n\n'
+            f'{self.type}\n'
+            f'{len(self.rules)} rule'
+            f'{(len(self.rules) > 1 or len(self.rules) == 0)*"s"}'
+            f'added.\n\n'
+            f'{self.url}'
+        )
+        return s
 
 
 class SlipOpinion(Release):
@@ -462,6 +482,16 @@ class SlipOpinion(Release):
         retv += '\n\nEND'
         return retv
 
+    def compose_tweet(self) -> str:
+        s = (
+            f'OPINION:\n'
+            f'{self.case_name :>{5}}\n\n'
+            f'Held: {self.holding}\n\n'
+            f'Author: {self.majority_author.name}'
+            f'\n{self.url}'
+        )
+        return s
+
 
 class OpinionRelatingToOrder(Release):
     """Opinions may be written by Justices to comment on the summary
@@ -471,8 +501,11 @@ class OpinionRelatingToOrder(Release):
     case_number: str
     petitioner: str
     repondent: str
+    case_name: str
     lower_court: str
     documents: list[Document]
+    author: JusticeTag
+    joiners: list[JusticeTag] | None
 
     def __init__(
         self, date: str, text: str, case_number: str, url: str,
@@ -483,9 +516,15 @@ class OpinionRelatingToOrder(Release):
         self.case_number = case_number
         self.petitioner = petitioner
         self.respondent = respondent
+        self.case_name = self.set_case_name()
         self.lower_court = lower_court
         self.documents = []
         self.set_documents()
+        self.author, self.joiners = self.set_authorship()
+
+    def set_case_name(self) -> str:
+        """Return {petitioner} v. {respondent} case format."""
+        return ' v. '.join([self.petitioner, self.respondent])
 
     def set_documents(self) -> None:
         pattern = (
@@ -501,12 +540,39 @@ class OpinionRelatingToOrder(Release):
         for doc_text in doc_texts:
             self.documents.append(Opinion(text=doc_text))
 
+    def set_authorship(self) -> tuple[JusticeTag, list[JusticeTag] | None]:
+        """Set author and joiners for Slip Opinion."""
+        if self.documents:
+            doc = self.documents[0]
+            if isinstance(doc, Opinion):
+                return (doc.author, doc.joiners)
+            else:
+                raise ValueError
+        else:
+            raise ValueError('ORTO missing document(s).')
+
     def __str__(self) -> str:
         """Return string representation of OrderList."""
         s = f'\n{self.case_number}\n{self.date}\n\n'
         s += f"{'OPINION RELATING TO ORDER SUMMARY':~^{72}}"
         s += f'\nLink  {self.url}'
         s += '\n'.join([str(o) for o in self.documents])  # print orders
+        return s
+
+    def compose_tweet(self) -> str:
+        try:
+            doc = self.documents[0]
+        except IndexError:
+            raise
+        if not isinstance(doc, Opinion):
+            raise ValueError
+        s = (
+            f'OPINION RELATING TO ORDER:\n\n'
+            f'{self.case_name}\n'
+            f'{doc.type.name}\n\n'
+            f'Author: {self.author.name}\n'
+            f'{self.url}'
+        )
         return s
 
 
@@ -539,7 +605,10 @@ class OrderRelease(Release):
         ):
             self.document = OrderList(self.text)
         elif self.document_type is DocumentType.RULES_ORDER:
-            self.document = RuleOrder(self.text, self.pdf, self.title)
+            self.document = RuleOrder(
+                self.text,
+                self.pdf, self.title, self.url,
+            )
 
     def __str__(self) -> str:
         """Return string representation of OrderList."""

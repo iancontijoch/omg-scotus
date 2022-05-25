@@ -35,5 +35,7 @@ class TwitterPublisher:
 
     def post_tweet(self, text: str) -> None:
         if len(text) > 280:
-            raise ValueError('Tweet cannot exceed 280 characters.')
+            raise ValueError(
+                f'Tweet cannot exceed 280 characters. {len(text)}',
+            )
         self.client.create_tweet(text=text)

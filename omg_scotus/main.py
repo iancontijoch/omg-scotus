@@ -57,6 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         help='fetch latest opinion relating to orders.',
     )
 
+    # Parse args
     args = parser.parse_args(argv)
     if args.orders:
         option = args.orders
@@ -67,42 +68,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         raise NotImplementedError
 
+    # Fetch and parse releases
     if option:
         if option == 'nourl':
-            debug_docs = []
+            docs = []
             payloads = Fetcher(get_stream(args), date=None).get_payload()
             for payload in payloads:
                 order = Parser(payload).get_object()
-                debug_docs.append(order)
+                docs.append(order)
         else:
-            debug_docs = [get_doc(option, get_stream(args))]
-
-    # debug_orders = [
-    #     # get_doc('050820zr_097c', Stream.ORDERS),  # stay
-    #     # get_doc('040422zor_4f14', Stream.ORDERS),  # orderlist no op.
-    #     # get_doc('041822zor_19m2', Stream.ORDERS),  # OL 1 op.
-    #     # get_doc('022822zor_o759', Stream.ORDERS),  # OL 2+ op.
-    #     # get_doc('041822zr_11o2', Stream.ORDERS),  # misc. order OL
-    #     # get_doc('20pdf/19-1257_new_4g15', Stream.SLIP_OPINIONS),
-    #     # get_doc('21pdf/20-303_6khn', Stream.SLIP_OPINIONS),
-    #     # get_doc('21pdf/21a244_hgci', Stream.SLIP_OPINIONS),  # PC
-    #     # get_doc('21pdf/20-480_b97c', Stream.SLIP_OPINIONS),  # reg opinion
-    #     # get_doc('21pdf/143orig_1qm1', Stream.SLIP_OPINIONS),  # orig
-    #     # get_doc('20pdf/22o65_dc8e', stream=Stream.SLIP_OPINIONS) #orig-mult
-    #     # get_doc('21pdf/21-145_2b82',
-    #     #         Stream.OPINIONS_RELATING_TO_ORDERS)  # 2 opinions
-    #     # get_doc('frbk22_cb8e', stream=Stream.ORDERS),  # Rules of Appellate
-    # ]
+            docs = [get_doc(option, get_stream(args))]
 
     tp = TwitterPublisher()
 
-    for doc in debug_docs:
+    # Print releases and tweet out summaries.
+    for doc in docs:
         if isinstance(doc, list):
             for subdoc in doc:
                 print(subdoc)
                 tp.post_tweet(text=subdoc.compose_tweet())
         else:
             print(doc)
+            tp.post_tweet(text=doc.compose_tweet())
 
     return 0
 

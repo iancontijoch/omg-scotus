@@ -3,6 +3,7 @@ import hashlib
 import time
 from typing import Any
 
+import beepy
 import bs4
 import requests
 
@@ -70,6 +71,11 @@ class ChangeDetector:
         else:
             raise NotImplementedError
 
+    def refresh(self) -> None:
+        """Refresh the page."""
+        self.response = self.get_response()
+        self.watch_element = self.set_watch_element()
+
     def get_hash(self) -> str:
         """Get hash from watched element."""
         return hashlib.sha256(
@@ -82,14 +88,18 @@ class ChangeDetector:
         """
         print(f'\nMonitoring {self.stream}...\n')
         hash = self.get_hash()
+        print(hash)
         while True:
             try:
                 time.sleep(self.scrape_interval)
+                self.refresh()
                 new_hash = self.get_hash()
+                print(new_hash)
                 print(f'Last checked: {datetime.datetime.now()}')
                 if hash == new_hash:
                     continue
                 else:
+                    beepy.beep(sound='ready')
                     main(argv=self.main_args)
                     break
 
