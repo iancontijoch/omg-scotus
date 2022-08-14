@@ -21,6 +21,7 @@ class OpinionType(Enum):
     STATEMENT = auto()
     DISSENT = auto()
     CONCURRENCE = auto()
+    CONCURRENCE_AND_DISSENT = auto()
     STAY = auto()
     SYLLABUS = auto()
     PLURALITY = auto()
@@ -239,7 +240,7 @@ class Syllabus(Opinion):
 
         e.g. 'KAGAN, J. delivered the opinion of... in which ... joined.'
         """
-        pattern = r'(?m)^\s*[A-Z]{3,}.+?(?=delivered|announced)[\W\w]+'
+        pattern = r'(?m)^\s*[A-Z]{4,}.+?(?=delivered|announced)[\W\w]+'
         return require_non_none(
             re.search(
                 pattern,
@@ -258,7 +259,7 @@ class Syllabus(Opinion):
         # author, *joiners = re.findall(r'[A-Z]{3,}', first_sent)
 
         recusal_sent = re.search(
-            r'[^.?!]+\b[A-Z]{3,}.+took\s+no\s+part[^.?!]+',
+            r'[^.?!]+\b[A-Z]{4,}.+took\s+no\s+part[^.?!]+',
             text,
         )
         if recusal_sent:
@@ -290,14 +291,14 @@ class SlipOpinion(Opinion):
         """Return opinion author."""
         # regex matches first occurrence of Justice Name/Chief Justice/Curiam
         pattern = (
-            r'(?ms)(?:CHIEF\s+)*JUSTICE\s+[A-Z]{3,}.+?[a-z]+\.|PER CURIAM'
+            r'(?ms)(?:CHIEF\s+)*JUSTICE\s+[A-Z]{4}.+?[a-z]+\.|PER CURIAM'
         )
         first_sent = require_non_none(re.search(pattern, self.text)).group()
         if bool(re.search('PER CURIAM', first_sent)):
             author, joiners = 'PER CURIAM', ['PER CURIAM']
         else:
             author, *joiners = re.findall(
-                r'\b(?!CHIEF|JUSTICE)[A-Z]{3,}',
+                r'\b(?!CHIEF|JUSTICE)[A-Z]{4,}',
                 first_sent,
             )
 

@@ -115,16 +115,27 @@ def create_docket_number(string: str) -> str:
     if match:
         return f'22O{match.groups()[0]}'
     else:
-        return string
+        return string.strip()
 
 
 def remove_justice_titles(string: str) -> str:
     """Removes JUSTICE, J., J. J., C . J ."""
     pattern = (
         r'\,\s*J\s*\.\,|\,\s*J\s*J\s*\.\,|\,\s*C\s*\.\s*J\s*\.\,|'
-        r'JUSTICE\s+|CHIEF\s+'
+        r'JUSTICE\s+|THE\s+(?=CHIEF)|CHIEF\s+JUSTICE'
     )
-    return re.sub(pattern, '', string)
+    s = re.sub(pattern, '', string)
+    return s
+
+
+def add_padding_to_periods(string: str) -> str:
+    """Converts 'II-C. Blah' --> 'II-C . Blah'"""
+    return string.replace('.', ' . ')
+
+
+def chief_justice_to_last_name(string: str) -> str:
+    """Replace CHIEF JUSTICE with the current Chief Justice's name."""
+    return string.replace('CHIEF JUSTICE', 'ROBERTS')
 
 
 def get_justices_from_sent(
@@ -133,10 +144,13 @@ def get_justices_from_sent(
     """Return a list of JusticeTag from str and regex."""
     sent = remove_hyphenation(sent)
     sent = remove_justice_titles(sent)
+    sent = remove_extra_whitespace(sent)
+    sent = chief_justice_to_last_name(sent)
     if bool(re.search(r'\bPER\s+CURIAM', sent)):
         return [JusticeTag.PER_CURIAM]
     # matches any 3 or more capital letters together within word boundary.
-    pattern = r'\b[A-Z]{3,}\b'
+    # Part-III was matching because it's three caps. Lol.
+    pattern = r'\b(?!III)[A-Z]{4,}\b'
     return [
         JusticeTag.from_string(remove_extra_whitespace(m))
         for m in re.findall(
@@ -146,7 +160,7 @@ def get_justices_from_sent(
     ]
 
 
-def get_disposition_type(string: str) -> list[Disposition]:
+def get_disposition_type(string: str) -> list[str]:
     """Return Disposition from holding text."""
 
     retv = []
@@ -163,5 +177,5 @@ def get_disposition_type(string: str) -> list[Disposition]:
     for m in re.finditer(p, string):
         for i, _ in enumerate(m.groups()):
             if _:
-                retv.append(d[i])
+                retv.append(d[i].name)
     return retv

@@ -31,10 +31,10 @@ def test_justice_full_name(s, expected):
 @pytest.mark.parametrize(
     ('s', 'expected'),
     (
-        ('John G. Roberts, Jr.', JusticeTag.CHIEF),
-        ('CHIEF  JUSTICE', JusticeTag.CHIEF),
-        ('chief justice', JusticeTag.CHIEF),
-        ('Chief Justice John G. Roberts, Jr.', JusticeTag.CHIEF),
+        ('John G. Roberts, Jr.', JusticeTag.ROBERTS),
+        ('CHIEF  JUSTICE', JusticeTag.ROBERTS),
+        ('chief justice', JusticeTag.ROBERTS),
+        ('Chief Justice John G. Roberts, Jr.', JusticeTag.ROBERTS),
         ('Sonia Sotomayor', JusticeTag.SOTOMAYOR),
         ('Sonia M. Sotomayor', JusticeTag.SOTOMAYOR),
         ('Samuel Alito', JusticeTag.ALITO),

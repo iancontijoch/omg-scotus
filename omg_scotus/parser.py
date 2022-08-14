@@ -6,6 +6,8 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Any
 
+from spacy.language import Language
+
 from omg_scotus._enums import DocumentType
 from omg_scotus.fetcher import Stream
 from omg_scotus.helpers import get_pdf_text
@@ -21,9 +23,12 @@ from omg_scotus.release import SlipOpinion
 class ParserStrategy(ABC):
 
     def __init__(
-        self, msg: dict[str, Any], document_type: DocumentType,
+        self, msg: dict[str, Any],
+        document_type: DocumentType,
+        nlp: Language,
     ) -> None:
         self.msg = msg
+        self.nlp = nlp
         self.document_type = document_type
 
     @abstractmethod
@@ -52,8 +57,10 @@ class OpinionParserStrategy(ParserStrategy):
         respondent = self.msg['respondent']
         lower_court = self.msg['lower_court']
         case_number = self.msg['case_number']
+        title = self.msg['title']
         is_per_curiam = self.msg['is_per_curiam']
         url = self.msg['url']
+        nlp = self.nlp
 
         if self.document_type is DocumentType.SLIP_OPINION:
             return SlipOpinion(
@@ -66,6 +73,8 @@ class OpinionParserStrategy(ParserStrategy):
                 petitioner=petitioner, respondent=respondent,
                 lower_court=lower_court, case_number=case_number,
                 is_per_curiam=is_per_curiam,
+                title=title,
+                nlp=nlp,
             )
         elif self.document_type is DocumentType.OPINION_RELATING_TO_ORDERS:
             return OpinionRelatingToOrder(
@@ -77,6 +86,8 @@ class OpinionParserStrategy(ParserStrategy):
                 petitioner=petitioner,
                 respondent=respondent,
                 lower_court=lower_court,
+                title=title,
+                nlp=nlp,
             )
         else:
             raise NotImplementedError('DocumentType not expected for Opinion.')
@@ -134,7 +145,7 @@ class OrderListParserStrategy(ParserStrategy):
             OrderRelease(
                 text=require_non_none(parsed_dict['orders_text']),
                 date=date, url=url, title=title, document_type=document_type,
-                pdf=pdf,
+                pdf=pdf, nlp=self.nlp,
             ),
         )
         return retv
@@ -177,6 +188,7 @@ class RulesParserStrategy(ParserStrategy):
         return OrderRelease(
             date=date, title=title, url=url,
             text=text, pdf=pdf, document_type=self.document_type,
+            nlp=self.nlp,
         )
 
 
@@ -184,12 +196,15 @@ class Parser:
     """Accept Fetcher payload and determine strategy"""
     parser_strategy: ParserStrategy
     document_type: DocumentType
+    nlp: Language
 
     def __init__(
         self,
         msg: dict[str, Any],
+        nlp: Language,
     ) -> None:
         self.msg = msg
+        self.nlp = nlp
         self.document_type = self.set_document_type()
         self.msg['pdf_text'] = get_pdf_text(self.msg['pdf'])
         self.msg['pdf_page_indices'] = self.get_pdf_page_indices()
@@ -240,16 +255,19 @@ class Parser:
             self.parser_strategy = OrderListParserStrategy(
                 self.msg,
                 self.document_type,
+                self.nlp,
             )
         elif self.document_type is DocumentType.STAY_ORDER:
             self.parser_strategy = StayOrderParserStrategy(
                 self.msg,
                 self.document_type,
+                self.nlp,
             )
         elif self.document_type is DocumentType.RULES_ORDER:
             self.parser_strategy = RulesParserStrategy(
                 self.msg,
                 self.document_type,
+                self.nlp,
             )
         elif self.document_type in (
             DocumentType.SLIP_OPINION,
@@ -258,6 +276,7 @@ class Parser:
             self.parser_strategy = OpinionParserStrategy(
                 self.msg,
                 self.document_type,
+                self.nlp,
             )
         else:
             raise NotImplementedError

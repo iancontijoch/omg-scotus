@@ -1,8 +1,11 @@
 autopep8
 beautifulsoup4
+beepy
 dateparser
+pandas
 pdfplumber
 pre-commit
 pytest
 pytest-lazy-fixture
 requests
+tweepy
