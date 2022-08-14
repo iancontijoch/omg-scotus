@@ -81,7 +81,7 @@ def test_create_docket_number(s: str, expected: str) -> None:
             """KAVANAUGH, J., delivered the opinion of the Court, in which ROBERTS,
 C. J., and THOMAS, BREYER, SOTOMAYOR, KAGAN, and GORSUCH, JJ.,
 joined.""", [
-                JusticeTag.KAVANAUGH, JusticeTag.CHIEF, JusticeTag.THOMAS,
+                JusticeTag.KAVANAUGH, JusticeTag.ROBERTS, JusticeTag.THOMAS,
                 JusticeTag.BREYER, JusticeTag.SOTOMAYOR, JusticeTag.KAGAN,
                 JusticeTag.GORSUCH,
             ],
@@ -109,23 +109,23 @@ def test_get_justices_from_sent(s: str, expected: str) -> None:
         (
             'Adjudged to be AFFIRMED IN PART, REVERSED IN PART, and case REMANDED.',
             [
-                Disposition.AFFIRMED_IN_PART, Disposition.REVERSED_IN_PART,
-                Disposition.REMANDED,
+                'AFFIRMED_IN_PART', 'REVERSED_IN_PART',
+                'REMANDED',
             ],
         ),
         (
             'Judgment REVERSED and case REMANDED.', [
-                Disposition.REVERSED,
-                Disposition.REMANDED,
+                'REVERSED',
+                'REMANDED',
             ],
         ),
         (
             'Writ of certiorari DISMISSED as improvidently granted.',
-            [Disposition.DISMISSED_AS_IMPROVIDENTLY_GRANTED],
+            ['DISMISSED_AS_IMPROVIDENTLY_GRANTED'],
         ),
         (
             'Petition GRANTED.  Determination of United States Court of Appeals for the Ninth Circuit that Rivas-Villegas is not entitled to qualified immunity REVERSED.',
-            [Disposition.REVERSED],
+            ['REVERSED'],
         ),
     ),
 )

@@ -4,13 +4,16 @@ import argparse
 from typing import Any
 from typing import Sequence
 
+import spacy
+from spacy.language import Language
+
 from omg_scotus.fetcher import Fetcher
 from omg_scotus.fetcher import Stream
 from omg_scotus.parser import Parser
 from omg_scotus.tweet import TwitterPublisher
 
 
-def get_doc(id: str, stream: Stream) -> Any:
+def get_doc(id: str, stream: Stream, nlp: Language) -> Any:
     if stream is Stream.ORDERS:
         url = (
             f'https://www.supremecourt.gov/'
@@ -24,7 +27,7 @@ def get_doc(id: str, stream: Stream) -> Any:
     else:
         raise NotImplementedError
     fr = Fetcher.from_url(url, stream)
-    pr = Parser(fr.get_payload()[0])
+    pr = Parser(msg=fr.get_payload()[0], nlp=nlp)
     return pr.get_object()
 
 
@@ -40,6 +43,8 @@ def get_stream(args: Any) -> Stream:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+
+    nlp = spacy.load('en_core_web_sm')
 
     parser = argparse.ArgumentParser(description='Run omg-scotus!')
 
@@ -77,10 +82,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             docs = []
             payloads = Fetcher(get_stream(args), date=None).get_payload()
             for payload in payloads:
-                order = Parser(payload).get_object()
-                docs.append(order)
+                doc = Parser(payload, nlp).get_object()
+                docs.append(doc)
         else:
-            docs = [get_doc(option, get_stream(args))]
+            docs = [get_doc(option, get_stream(args), nlp)]
 
     tp = TwitterPublisher()
 

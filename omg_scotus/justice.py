@@ -29,7 +29,7 @@ class President(Enum):
 
 
 class JusticeTag(Enum):
-    CHIEF = auto()
+    ROBERTS = auto()
     THOMAS = auto()
     BREYER = auto()
     ALITO = auto()
@@ -38,13 +38,17 @@ class JusticeTag(Enum):
     GORSUCH = auto()
     KAVANAUGH = auto()
     BARRETT = auto()
+    GINSBURG = auto()
+    KENNEDY = auto()
+    SCALIA = auto()
+    SOUTER = auto()
     PER_CURIAM = auto()
 
     @staticmethod
     def from_string(s: str) -> JusticeTag:
         """Return JusticeTag from string."""
         d = {
-            'CHIEF JUSTICE': JusticeTag.CHIEF,
+            'CHIEF JUSTICE': JusticeTag.ROBERTS,
             'JUSTICE THOMAS': JusticeTag.THOMAS,
             'JUSTICE BREYER': JusticeTag.BREYER,
             'JUSTICE ALITO': JusticeTag.ALITO,
@@ -53,8 +57,12 @@ class JusticeTag(Enum):
             'JUSTICE GORSUCH': JusticeTag.GORSUCH,
             'JUSTICE KAVANAUGH': JusticeTag.KAVANAUGH,
             'JUSTICE BARRETT': JusticeTag.BARRETT,
+            'JUSTICE GINSBURG': JusticeTag.GINSBURG,
+            'JUSTICE KENNEDY': JusticeTag.KENNEDY,
+            'JUSTICE SCALIA': JusticeTag.SCALIA,
+            'JUSTICE SOUTER': JusticeTag.SOUTER,
             'PER CURIAM': JusticeTag.PER_CURIAM,
-            'ROBERTS': JusticeTag.CHIEF,
+            'ROBERTS': JusticeTag.ROBERTS,
             'THOMAS': JusticeTag.THOMAS,
             'BREYER': JusticeTag.BREYER,
             'ALITO': JusticeTag.ALITO,
@@ -63,6 +71,10 @@ class JusticeTag(Enum):
             'GORSUCH': JusticeTag.GORSUCH,
             'KAVANAUGH': JusticeTag.KAVANAUGH,
             'BARRETT': JusticeTag.BARRETT,
+            'GINSBURG': JusticeTag.GINSBURG,
+            'KENNEDY': JusticeTag.KENNEDY,
+            'SCALIA': JusticeTag.SCALIA,
+            'SOUTER': JusticeTag.SOUTER,
         }
         if s not in d:
             raise NotImplementedError(
@@ -168,7 +180,7 @@ def create_court() -> tuple[Justice, ...]:
         middle_name='Glover',
         last_name='Roberts',
         suffix='Jr.',
-        tag=JusticeTag.CHIEF,
+        tag=JusticeTag.ROBERTS,
         start_date=date(2005, 9, 25),
         birth_date=date(1955, 1, 27),
         nominating_president=President.BUSH,
