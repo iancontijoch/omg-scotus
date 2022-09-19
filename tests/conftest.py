@@ -26,6 +26,7 @@ def justice_w_middle_name_title() -> Justice:
         nominating_president=President.BUSH,
         role=Role.CHIEF_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
     return retv
 
@@ -42,6 +43,7 @@ def justice_w_middle_name() -> Justice:
         nominating_president=President.BUSH,
         role=Role.CHIEF_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
     return retv
 
@@ -58,6 +60,7 @@ def justice_wo_middle_name_title() -> Justice:
         nominating_president=President.BUSH,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=False,
     )
     return retv
 
@@ -73,10 +76,11 @@ def justice_wo_middle_name() -> Justice:
         nominating_president=President.BUSH,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=False,
     )
     return retv
 
 
 @pytest.fixture
 def court():
-    return create_court()
+    return create_court(current=True)

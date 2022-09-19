@@ -94,9 +94,16 @@ def remove_extra_whitespace(s: str) -> str:
 
 
 def remove_hyphenation(text: str) -> str:
-    return re.sub(
+    """Remove wrap-around hyphenation"""
+    retv = re.sub(
         pattern=r'(\w+)-$\n(\w+)', repl=r'\1\2',
         string=text, flags=re.M,
+    )
+    retv = re.sub(pattern=r'-\s*\n\s*(\n)*', repl='', string=retv, flags=re.M)
+    return re.sub(
+        pattern=r'\xad\s*',
+        repl='',
+        string=retv,
     )
 
 
@@ -107,6 +114,20 @@ def remove_char_from_list(lst: list[Any], char: str) -> list[Any]:
 def remove_notice(text: str) -> str:
     """Remove NOTICE disclaimer from Syllabus text."""
     return re.sub(r'(?s)NOTICE:.+', '', text)
+
+
+def remove_between_parentheses(text: str) -> str:
+    """Remove all text between parentheses."""
+    return re.sub(r'(?ms)\(.*?\)', '', text)
+
+
+def remove_trailing_spaces_within_parentheses(text: str) -> str:
+    """Remove unnecessary whitespace within parentheses."""
+    # opening parens
+    retv = re.sub(pattern=r'(?m)([\[\(\{])\s+', repl=r'\1', string=text)
+    # closing parens
+    retv = re.sub(pattern=r'(?m)\s+([\]\)\}])', repl=r'\1', string=retv)
+    return retv
 
 
 def create_docket_number(string: str) -> str:
@@ -121,8 +142,8 @@ def create_docket_number(string: str) -> str:
 def remove_justice_titles(string: str) -> str:
     """Removes JUSTICE, J., J. J., C . J ."""
     pattern = (
-        r'\,\s*J\s*\.\,|\,\s*J\s*J\s*\.\,|\,\s*C\s*\.\s*J\s*\.\,|'
-        r'JUSTICE\s+|THE\s+(?=CHIEF)|CHIEF\s+JUSTICE'
+        r'\,\s*J\s*[\.\,]+|\,\s*J\s*J\s*[\.\,]+|\,\s*C\s*\.\s*J\s*\.\,*|'
+        r'JUSTICE\s+|THE\s+(?=CHIEF)|CHIEF\s+JUSTICE|\,*\s*J\s*\.\,*'
     )
     s = re.sub(pattern, '', string)
     return s
@@ -135,7 +156,10 @@ def add_padding_to_periods(string: str) -> str:
 
 def chief_justice_to_last_name(string: str) -> str:
     """Replace CHIEF JUSTICE with the current Chief Justice's name."""
-    return string.replace('CHIEF JUSTICE', 'ROBERTS')
+    pattern = (
+        r'(THE)*\s*CHIEF\s*JUSTICE\s*'
+    )
+    return re.sub(pattern, 'ROBERTS', string)
 
 
 def get_justices_from_sent(
@@ -146,7 +170,12 @@ def get_justices_from_sent(
     sent = remove_justice_titles(sent)
     sent = remove_extra_whitespace(sent)
     sent = chief_justice_to_last_name(sent)
-    if bool(re.search(r'\bPER\s+CURIAM', sent)):
+    if bool(
+        re.search(
+            r'\bPER\s+CURIAM|DECREE|decree|ORDER\s+AND\s+JUDGMENT',
+            sent,
+        ),
+    ):
         return [JusticeTag.PER_CURIAM]
     # matches any 3 or more capital letters together within word boundary.
     # Part-III was matching because it's three caps. Lol.

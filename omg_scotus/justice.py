@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from datetime import date
 from enum import auto
 from enum import Enum
 
 from dateutil.relativedelta import relativedelta
-# from omg_scotus._enums import JusticeTag
 
 
 class Role(Enum):
@@ -26,6 +26,7 @@ class President(Enum):
     OBAMA = auto()
     TRUMP = auto()
     BIDEN = auto()
+    BUSH_SR = auto()
 
 
 class JusticeTag(Enum):
@@ -38,6 +39,7 @@ class JusticeTag(Enum):
     GORSUCH = auto()
     KAVANAUGH = auto()
     BARRETT = auto()
+    JACKSON = auto()
     GINSBURG = auto()
     KENNEDY = auto()
     SCALIA = auto()
@@ -57,6 +59,7 @@ class JusticeTag(Enum):
             'JUSTICE GORSUCH': JusticeTag.GORSUCH,
             'JUSTICE KAVANAUGH': JusticeTag.KAVANAUGH,
             'JUSTICE BARRETT': JusticeTag.BARRETT,
+            'JUSTICE JACKSON': JusticeTag.JACKSON,
             'JUSTICE GINSBURG': JusticeTag.GINSBURG,
             'JUSTICE KENNEDY': JusticeTag.KENNEDY,
             'JUSTICE SCALIA': JusticeTag.SCALIA,
@@ -96,6 +99,7 @@ class Justice:
     rank: int
     ideology: Ideology
     nominating_president: President
+    is_active: bool
     _regex_pattern: str
 
     def __init__(
@@ -106,6 +110,7 @@ class Justice:
         birth_date: date,
         tag: JusticeTag,
         nominating_president: President,
+        is_active: bool,
         role: Role,
         ideology: Ideology,
         middle_name: str | None = None,
@@ -122,6 +127,7 @@ class Justice:
         self.nominating_president = nominating_president
         self.role = role
         self.ideology = ideology
+        self.is_active = is_active
         self.full_name = self._set_fullname()
         self.rank = self._get_rank()
         self.tenure = self._get_court_tenure()
@@ -165,7 +171,7 @@ class Justice:
 
 def extract_justice(string: str) -> JusticeTag:
     """Search text for Justices names and return first tag."""
-    court = create_court()
+    court = create_court(current=False)
     d = {j._get_regex_pattern(): j.tag for j in court}
     for k, v in d.items():
         if bool(re.search(k, string, re.DOTALL | re.M | re.I)):
@@ -173,7 +179,7 @@ def extract_justice(string: str) -> JusticeTag:
     raise NotImplementedError
 
 
-def create_court() -> tuple[Justice, ...]:
+def create_court(current: bool) -> Iterable[Justice]:
 
     chief = Justice(
         first_name='John',
@@ -186,6 +192,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.BUSH,
         role=Role.CHIEF_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
 
     thomas = Justice(
@@ -197,6 +204,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.BUSH,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
 
     breyer = Justice(
@@ -209,6 +217,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.CLINTON,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.LIBERAL,
+        is_active=False,
     )
 
     alito = Justice(
@@ -222,6 +231,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.BUSH,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
 
     sotomayor = Justice(
@@ -234,6 +244,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.OBAMA,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.LIBERAL,
+        is_active=True,
     )
 
     kagan = Justice(
@@ -245,6 +256,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.OBAMA,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.LIBERAL,
+        is_active=True,
     )
 
     gorsuch = Justice(
@@ -257,6 +269,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.TRUMP,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
 
     kavanaugh = Justice(
@@ -269,6 +282,7 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.TRUMP,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
 
     barrett = Justice(
@@ -281,9 +295,78 @@ def create_court() -> tuple[Justice, ...]:
         nominating_president=President.TRUMP,
         role=Role.ASSOCIATE_JUSTICE,
         ideology=Ideology.CONSERVATIVE,
+        is_active=True,
     )
 
-    return (
-        chief, thomas, breyer, alito, sotomayor,
-        kagan, gorsuch, kavanaugh, barrett,
+    kennedy = Justice(
+        first_name='Anthony',
+        last_name='Kennedy',
+        tag=JusticeTag.KENNEDY,
+        start_date=date(1988, 2, 18),
+        birth_date=date(1936, 7, 23),
+        nominating_president=President.REAGAN,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.CONSERVATIVE,
+        is_active=False,
     )
+
+    ginsburg = Justice(
+        first_name='Ruth',
+        last_name='Ginsburg',
+        tag=JusticeTag.GINSBURG,
+        start_date=date(1993, 8, 10),
+        birth_date=date(1933, 3, 15),
+        nominating_president=President.CLINTON,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.LIBERAL,
+        is_active=False,
+    )
+
+    scalia = Justice(
+        first_name='Antonin',
+        middle_name='Gregory',
+        last_name='Scalia',
+        tag=JusticeTag.SCALIA,
+        start_date=date(1986, 9, 26),
+        birth_date=date(1936, 3, 11),
+        nominating_president=President.REAGAN,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.CONSERVATIVE,
+        is_active=False,
+    )
+
+    jackson = Justice(
+        first_name='Ketanji',
+        middle_name='Onyika',
+        last_name='Jackson',
+        tag=JusticeTag.JACKSON,
+        start_date=date(2022, 6, 30),
+        birth_date=date(1970, 9, 14),
+        nominating_president=President.BIDEN,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.LIBERAL,
+        is_active=True,
+    )
+
+    souter = Justice(
+        first_name='David',
+        middle_name='Hackett',
+        last_name='Souter',
+        tag=JusticeTag.SOUTER,
+        start_date=date(1990, 10, 9),
+        birth_date=date(1939, 9, 17),
+        nominating_president=President.BUSH_SR,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.LIBERAL,
+        is_active=False,
+    )
+
+    justices = (
+        chief, thomas, breyer, alito, sotomayor,
+        kagan, gorsuch, kavanaugh, barrett, jackson,
+        scalia, souter, kennedy, ginsburg,
+    )
+    if current:
+        return (justice for justice in justices if justice.is_active)
+    else:
+        return justices
