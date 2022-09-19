@@ -164,8 +164,8 @@ class StayOpinion(Opinion):
     def __init__(self, text: str, url: str) -> None:
         """Init Opinion."""
         self._regex_patterns = {
-            'parties': r'(?m)(.*)\,\s+Applicant\s+v.\s+(.*$)',
-            'court': r'(?s)the\smandate\sof\sthe\s(.*?)\,\scase',
+            'parties': r'(?m)(.*)\,\s+Applicant*s\s+v.\s+(.*$)',
+            'court': r'(?s)the\s+\w+\sof\sthe\s(.*?)\,\scase',
             'case_num': r'\bNo.\s+([A-Z\d]+)',
         }
         petitioner, respondent = self.get_attr('parties', text)

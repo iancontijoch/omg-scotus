@@ -356,6 +356,7 @@ class Opinion(OpinionDocument):
     @staticmethod
     def get_type(text: str) -> OpinionType:
         """Return opinion type."""
+
         STATEMENT_PATTERN = r'Statement\s+of\s+'
         DISSENT_PATTERN = r'(?:dissent)\w+\b'
         CONCURRENCE_PATTERN = r'(?:concurr)\w+\b'
@@ -363,6 +364,7 @@ class Opinion(OpinionDocument):
         MAJORITY_PATTERN = r'delivered\s+the\s+opinion'
         PER_CURIAM_PATTERN = r'PER CURIAM'
         DECREE_PATTERN = r'(?i)DECREE|ORDER\s+AND\s+JUDGMENT'
+        STAY_PATTERN = r'stay'
 
         d = {
             STATEMENT_PATTERN: OpinionType.STATEMENT,
@@ -372,6 +374,7 @@ class Opinion(OpinionDocument):
             MAJORITY_PATTERN: OpinionType.MAJORITY,
             PER_CURIAM_PATTERN: OpinionType.PER_CURIAM,
             DECREE_PATTERN: OpinionType.DECREE,
+            STAY_PATTERN: OpinionType.STAY,
         }
 
         text = remove_hyphenation(text)  # remove artifacts
@@ -626,7 +629,7 @@ class SlipOpinion(Release):
             majority.extend(majority_opinion[2])
         for opinion in opinions:
             opinion_summary = (
-                f'{require_non_none(opinion[0]).name}'
+                f'{require_non_none(opinion[0]).name} '
                 f'by {require_non_none(opinion[1]).name}, '
             )
             if opinion[0] is OpinionType.DISSENT:

@@ -46,9 +46,9 @@ def add_custom_rules_to_nlp(nlp: Language) -> None:
     # Add custom rules to nlp
     ruler = nlp.get_pipe('attribute_ruler')
     patterns = [
-        [{'UPPER': 'SCALIA'}],
-        [{'UPPER': 'ALITO'}],
-        [{'UPPER': 'THOMAS'}],
+        [{'TEXT': 'SCALIA'}],
+        [{'TEXT': 'ALITO'}],
+        [{'TEXT': 'THOMAS'}],
     ]
     attrs = {'DEP': 'nsubj'}
     ruler.add(patterns=patterns, attrs=attrs)
