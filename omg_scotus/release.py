@@ -15,10 +15,12 @@ from omg_scotus._enums import RulesType
 from omg_scotus.helpers import add_padding_to_periods
 from omg_scotus.helpers import get_disposition_type
 from omg_scotus.helpers import get_justices_from_sent
+from omg_scotus.helpers import remove_between_parentheses
 from omg_scotus.helpers import remove_extra_whitespace
 from omg_scotus.helpers import remove_hyphenation
 from omg_scotus.helpers import remove_justice_titles
 from omg_scotus.helpers import remove_notice
+from omg_scotus.helpers import remove_trailing_spaces_within_parentheses
 from omg_scotus.helpers import require_non_none
 from omg_scotus.justice import create_court
 from omg_scotus.justice import JusticeTag
@@ -48,7 +50,7 @@ class Release(ABC):
         document_type: DocumentType, nlp: Language,
     ) -> None:
         self.date = date
-        self.text = text
+        self.text = remove_trailing_spaces_within_parentheses(text)
         self.url = url
         self.document_type = document_type
         self.nlp = nlp
@@ -65,10 +67,17 @@ class Document(ABC):
     """Any type of document included in a release."""
     text: str
     nlp: Language
+    document_type: DocumentType
 
-    def __init__(self, text: str, nlp: Language) -> None:
+    def __init__(
+        self,
+        text: str,
+        nlp: Language,
+        document_type: DocumentType,
+    ) -> None:
         self.text = text
         self.nlp = nlp
+        self.document_type = document_type
 
     @abstractmethod
     def compose_tweet(self) -> str:
@@ -78,6 +87,7 @@ class Document(ABC):
 class OpinionDocument(Document, ABC):
     """Syllabi/Opinions/ORTO"""
     text: str
+    document_type: DocumentType
     nlp: Language
     author: JusticeTag
     joiners: list[JusticeTag] | None
@@ -122,8 +132,11 @@ class Syllabus(OpinionDocument):
     """Syllabus for a Slip Opinion."""
     alignment_tuple: list[tuple[OpinionType, str, list[str]]]
 
-    def __init__(self, text: str, nlp: Language) -> None:
-        super().__init__(text=text, nlp=nlp)
+    def __init__(
+        self, text: str, nlp: Language,
+        document_type: DocumentType,
+    ) -> None:
+        super().__init__(text=text, nlp=nlp, document_type=document_type)
         self._attribution_sentence = self.get_attribution_sentence()
         self.get_alignment_tuple()
         self.recusals = None
@@ -139,10 +152,12 @@ class Syllabus(OpinionDocument):
         e.g. 'KAGAN, J. delivered the opinion of... in which ... joined.'
         """
         # pattern = r'(?ms)^\s*[A-Z]{4,}\,\s+[CJ\s\.\,]+.+'
-        pattern = r'(?ms)\b[A-Z]{4,}\,\s(C\. |J)*J\.\,.*'
+        pattern = r'(?ms)\b[A-Z]{4,}\,\s(C\. |J)*J\..*'
         string = remove_extra_whitespace(
             remove_notice(
-                remove_hyphenation(self.text),
+                remove_hyphenation(
+                    remove_between_parentheses(self.text),
+                ),
             ),
         )
         retv = require_non_none(
@@ -175,15 +190,7 @@ class Syllabus(OpinionDocument):
         opinions = []
         op_type = None
 
-        if (
-            len([t for t in doc.text if t == '.']) !=
-            len([sent for sent in doc.sents])
-        ):
-            raise ValueError(
-                'spaCy detected a different amount of sentences than periods.',
-            )
-
-        court = create_court()
+        court = create_court(current=False)
 
         for sent in doc.sents:
             if 'filed' not in sent.text:  # majority opinion
@@ -229,7 +236,9 @@ class Syllabus(OpinionDocument):
                     # judgment in part and dissenting in part.
                     contributors = [t for t in sent if t.pos_ == 'PROPN']
                     for c in contributors:
-                        opinions.append((op_type, c, None))
+                        opinions.append(
+                            (op_type, JusticeTag.from_string(c.text), None),
+                        )
                 else:
                     for token in sent:
                         if token.text == 'filed':
@@ -256,7 +265,8 @@ class Syllabus(OpinionDocument):
         """Parse first sentence of attribution sentence and set authorship."""
         # first sentence before the word 'filed'
         pattern = (
-            r'(?s).*?(?=\.[^.!?]+filed|unanimous)'
+            r'(?s).*?(?=\.[^.!?]+filed|unanimous|case|Parts*'
+            r'|judgment|except|all\s+but)'
         )
         sent = require_non_none(
             re.search(pattern, self._attribution_sentence),
@@ -272,8 +282,13 @@ class Opinion(OpinionDocument):
     type: OpinionType
     nlp: Language
 
-    def __init__(self, text: str, nlp: Language) -> None:
-        super().__init__(text, nlp)
+    def __init__(
+        self,
+        text: str,
+        nlp: Language,
+        document_type: DocumentType,
+    ) -> None:
+        super().__init__(text, nlp, document_type)
         self.recusals = None
         self._attribution_sentence = self.get_attribution_sentence()
         self.type = self.get_type(self._attribution_sentence)
@@ -282,22 +297,37 @@ class Opinion(OpinionDocument):
 
     def get_attribution_sentence(self) -> str:
         """Return sentence used to determine authorship and opinion type."""
-        # matches first sentence after "YYYY]"
+        # matches first sentence after "YYYY]", disregards J. title
         retv: str = ''
         pattern = (
-            r'(?ms)(?<=\d{4}\])[^.!?\]\[]+\.'
+            r'(?ms)(?<=[^\[]\d{4}\])[^.!?\]\[]+(?:J\.)*[^.!?\]\[]+\.'
         )
 
-        # PER CURIAMS do not have square brackers
+        # PER CURIAMS do not have square brackets -- oops, they can in body
         try:
             retv = re.findall(pattern, self.text)[0]
         except IndexError:
             try:
-                retv = re.findall(r'PER\s+CURIAM', self.text)[0]
+                retv = re.findall(
+                    r'PER\s+CURIAM|DECREE|ORDER\s+AND\s+JUDGMENT', self.text,
+                )[0]
             except IndexError:
                 try:
-                    pattern = r'(?ms)(?<=\d{4})[^.!?\]\[]+\.([^.!?\]\[]+\.)'
-                    retv = re.findall(pattern, self.text)[0]
+                    # get first sentence after brackets
+                    if (
+                        self.document_type
+                        is DocumentType.OPINION_RELATING_TO_ORDERS
+                    ):
+                        pattern = (
+                            r'(?ms)(?<=\d{4})[^.!?\]\[]+\.'
+                            r'([^.!?\]\[]+\.)'
+                        )
+                        retv = re.findall(pattern, self.text)[0]
+                    elif self.document_type is DocumentType.SLIP_OPINION:
+                        pattern = r'(?ms)(?<=\d{4})[^.!?\]\[\d]+\.'
+                        retv = re.findall(pattern, self.text)[0]
+                    else:
+                        raise NotImplementedError
                 except IndexError:
                     raise
         finally:
@@ -332,6 +362,7 @@ class Opinion(OpinionDocument):
         PLURALITY_PATTERN = r'delivered\s+an\s+opinion'
         MAJORITY_PATTERN = r'delivered\s+the\s+opinion'
         PER_CURIAM_PATTERN = r'PER CURIAM'
+        DECREE_PATTERN = r'(?i)DECREE|ORDER\s+AND\s+JUDGMENT'
 
         d = {
             STATEMENT_PATTERN: OpinionType.STATEMENT,
@@ -340,6 +371,7 @@ class Opinion(OpinionDocument):
             PLURALITY_PATTERN: OpinionType.PLURALITY,
             MAJORITY_PATTERN: OpinionType.MAJORITY,
             PER_CURIAM_PATTERN: OpinionType.PER_CURIAM,
+            DECREE_PATTERN: OpinionType.DECREE,
         }
 
         text = remove_hyphenation(text)  # remove artifacts
@@ -356,8 +388,12 @@ class OrderList(Document):
     title: str
     sections: list[Section]
 
-    def __init__(self, text: str, nlp: Language) -> None:
-        super().__init__(text, nlp=nlp)
+    def __init__(
+        self, text: str,
+        nlp: Language,
+        document_type: DocumentType,
+    ) -> None:
+        super().__init__(text, nlp=nlp, document_type=document_type)
         self.title = self.get_title()
         self.sections = []
         self.set_sections()
@@ -424,9 +460,9 @@ class RuleOrder(Document):
 
     def __init__(
         self, text: str, pdf: pdfplumber.pdf.PDF, title: str,
-        url: str,
+        url: str, document_type: DocumentType,
     ) -> None:
-        super().__init__(text, nlp=self.nlp)
+        super().__init__(text, nlp=self.nlp, document_type=document_type)
         self.pdf = pdf
         self.title = title
         self.url = url
@@ -515,6 +551,7 @@ class SlipOpinion(Release):
     disposition_text: str
     dipositions: list[Disposition]
     is_per_curiam: bool
+    is_decree: bool
     syllabus: Syllabus | None
     opinions: list[Opinion]
     majority_author: JusticeTag
@@ -527,7 +564,8 @@ class SlipOpinion(Release):
         self, date: str, text: str, case_number: str, title: str, url: str,
         document_type: DocumentType, petitioner: str,
         respondent: str, lower_court: str, holding: str,
-        disposition_text: str, is_per_curiam: bool, nlp: Language,
+        disposition_text: str, is_per_curiam: bool, is_decree: bool,
+        nlp: Language,
     ) -> None:
         super().__init__(
             date=date, text=text, url=url,
@@ -542,6 +580,7 @@ class SlipOpinion(Release):
         self.holding = holding
         self.disposition_text = disposition_text
         self.is_per_curiam = is_per_curiam
+        self.is_decree = is_decree
         self.syllabus = None
         self.case_name = self.get_case_name()
         self.opinions = []
@@ -553,14 +592,25 @@ class SlipOpinion(Release):
         self.dispositions = get_disposition_type(self.disposition_text)
 
     def get_case_name(self) -> str:
-        """Return {petitioner} v. {respondent} case format."""
-        return ' v. '.join([self.petitioner, self.respondent])
+        """Return {petitioner} v. {respondent}/In Re {respdt} for mandamus."""
+        if self.respondent:
+            return ' v. '.join([self.petitioner, self.respondent])
+        else:
+            return f'In Re {self.petitioner}'
 
     def get_alignment_summary(
         self,
     ) -> tuple[list[JusticeTag], list[JusticeTag | None], str, list[str]]:
         if self.syllabus:
             majority_opinion, *opinions = self.syllabus.get_alignment_tuple()
+        elif self.is_decree:
+            majority_opinion, opinions = [
+                (
+                    OpinionType.DECREE,
+                    JusticeTag.PER_CURIAM,
+                    None,
+                ), [],
+            ]
         else:
             majority_opinion, opinions = [
                 (
@@ -597,7 +647,10 @@ class SlipOpinion(Release):
                 )
             opinion_summaries.append(opinion_summary)
 
-        if majority_opinion is OpinionType.PER_CURIAM:
+        if (
+            majority_opinion[0] is OpinionType.PER_CURIAM
+            or majority_opinion[0] is OpinionType.DECREE
+        ):
             majority_count = 9
         else:
             majority_count = len(set(majority))
@@ -616,7 +669,7 @@ class SlipOpinion(Release):
         if self.syllabus:
             # alignment = self.syllabus.get_alignment_tuple()
             return (self.syllabus.author, self.syllabus.joiners)
-        elif self.is_per_curiam:
+        elif self.is_per_curiam or self.is_decree:
             return (JusticeTag.PER_CURIAM, [JusticeTag.PER_CURIAM])
         else:
             raise NotImplementedError
@@ -625,7 +678,7 @@ class SlipOpinion(Release):
         """Set recused Justices for Slip Opinion."""
         if self.syllabus:
             return self.syllabus.recusals
-        elif self.is_per_curiam:
+        elif self.is_per_curiam or self.is_decree:
             return self.opinions[0].recusals
         else:
             raise NotImplementedError
@@ -633,8 +686,9 @@ class SlipOpinion(Release):
     def set_documents(self) -> None:
         """Get Opinions"""
         pattern = (
-            r'(?ms)(SUPREME COURT OF THE UNITED STATES.*?(?=SUPREME COURT OF '
-            r'THE UNITED STATES))|(SUPREME COURT OF THE UNITED STATES .*)'
+            r'(?ms)(SUPREME\s+COURT\s+OF\s+THE\s+UNITED\s+STATES.*?'
+            r'(?=SUPREME\s+COURT\s+OF\s+THE\s+UNITED\s+STATES))|(SUPREME\s+'
+            r'COURT\s+OF\s+THE\s+UNITED\s+STATES\s+.*)'
         )
         # pattern searches for text betwen SCOTUS headers, as well as EOF.
         # joining because last match thru EOF is captured in group 2.
@@ -643,13 +697,17 @@ class SlipOpinion(Release):
             re.findall(pattern=pattern, string=self.text)
         ]
 
-        if not self.is_per_curiam:
-            self.syllabus = Syllabus(text=doc_texts[0], nlp=self.nlp)
+        if not (self.is_per_curiam or self.is_decree):
+            self.syllabus = Syllabus(
+                text=doc_texts[0], nlp=self.nlp,
+                document_type=self.document_type,
+            )
             for doc_text in doc_texts[1:]:
                 self.opinions.append(
                     Opinion(
                         text=doc_text,
                         nlp=self.nlp,
+                        document_type=self.document_type,
                     ),
                 )
         else:
@@ -658,6 +716,7 @@ class SlipOpinion(Release):
                     Opinion(
                         text=doc_text,
                         nlp=self.nlp,
+                        document_type=self.document_type,
                     ),
                 )
 
@@ -741,7 +800,13 @@ class OpinionRelatingToOrder(Release):
             re.findall(pattern=pattern, string=self.text)
         ]
         for doc_text in doc_texts:
-            self.documents.append(Opinion(text=doc_text, nlp=self.nlp))
+            self.documents.append(
+                Opinion(
+                    text=doc_text,
+                    nlp=self.nlp,
+                    document_type=self.document_type,
+                ),
+            )
 
     def set_authorship(self) -> tuple[JusticeTag, list[JusticeTag] | None]:
         """Set author and joiners for Slip Opinion."""
@@ -806,11 +871,15 @@ class OrderRelease(Release):
             DocumentType.ORDER_LIST,
             DocumentType.MISCELLANEOUS_ORDER,
         ):
-            self.document = OrderList(self.text, nlp=self.nlp)
+            self.document = OrderList(
+                self.text,
+                nlp=self.nlp,
+                document_type=self.document_type,
+            )
         elif self.document_type is DocumentType.RULES_ORDER:
             self.document = RuleOrder(
                 self.text,
-                self.pdf, self.title, self.url,
+                self.pdf, self.title, self.url, self.document_type,
             )
 
     def __str__(self) -> str:

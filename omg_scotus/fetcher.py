@@ -260,7 +260,10 @@ class OpinionsFetcherStrategy(FetcherStrategy):
                     ),
                 )
                 petitioner = docket_json['PetitionerTitle']
-                respondent = docket_json['RespondentTitle']
+                if 'RespondentTitle' in docket_json:  # mandamus has no respdt.
+                    respondent = docket_json['RespondentTitle']
+                else:
+                    respondent = None
                 lower_court = docket_json['LowerCourt']
                 case_number = docket_json['CaseNumber']
                 disposition_text = self.get_disposition(docket_json, date)
@@ -286,6 +289,7 @@ class OpinionsFetcherStrategy(FetcherStrategy):
                     'holding': holding,
                     'disposition_text': disposition_text,
                     'is_per_curiam': author_initials == 'PC',
+                    'is_decree': author_initials == 'D',
                     'url': url,
                     'pdf': read_pdf(url),
                 }

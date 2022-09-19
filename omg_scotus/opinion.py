@@ -27,6 +27,7 @@ class OpinionType(Enum):
     PLURALITY = auto()
     MAJORITY = auto()
     PER_CURIAM = auto()
+    DECREE = auto()
 
 
 class Opinion(ABC):

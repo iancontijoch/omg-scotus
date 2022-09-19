@@ -42,9 +42,22 @@ def get_stream(args: Any) -> Stream:
         raise NotImplementedError
 
 
+def add_custom_rules_to_nlp(nlp: Language) -> None:
+    # Add custom rules to nlp
+    ruler = nlp.get_pipe('attribute_ruler')
+    patterns = [
+        [{'UPPER': 'SCALIA'}],
+        [{'UPPER': 'ALITO'}],
+        [{'UPPER': 'THOMAS'}],
+    ]
+    attrs = {'DEP': 'nsubj'}
+    ruler.add(patterns=patterns, attrs=attrs)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 
     nlp = spacy.load('en_core_web_sm')
+    add_custom_rules_to_nlp(nlp)
 
     parser = argparse.ArgumentParser(description='Run omg-scotus!')
 

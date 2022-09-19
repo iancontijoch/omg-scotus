@@ -43,7 +43,12 @@ class OpinionParserStrategy(ParserStrategy):
         retv = ''
         for start, end in self.msg['pdf_page_indices']:
             segment = self.msg['pdf_text'][start:end]
-            retv += '\n'.join(segment.splitlines()[3:])  # omit header
+            lines = segment.splitlines()
+            # if the first line is a space, it is a decree with short header
+            if len(lines) > 0:
+                header_end_idx = 2 if lines[0].isspace() else 3
+                # omit header
+                retv += '\n' + '\n'.join(lines[header_end_idx:])
         if retv == '':
             raise ValueError('No opinion text was parsed.')
         return retv
@@ -59,10 +64,12 @@ class OpinionParserStrategy(ParserStrategy):
         case_number = self.msg['case_number']
         title = self.msg['title']
         is_per_curiam = self.msg['is_per_curiam']
+        is_decree = self.msg['is_decree']
         url = self.msg['url']
         nlp = self.nlp
+        document_type = self.document_type
 
-        if self.document_type is DocumentType.SLIP_OPINION:
+        if document_type is DocumentType.SLIP_OPINION:
             return SlipOpinion(
                 date=date,
                 url=url,
@@ -73,10 +80,11 @@ class OpinionParserStrategy(ParserStrategy):
                 petitioner=petitioner, respondent=respondent,
                 lower_court=lower_court, case_number=case_number,
                 is_per_curiam=is_per_curiam,
+                is_decree=is_decree,
                 title=title,
                 nlp=nlp,
             )
-        elif self.document_type is DocumentType.OPINION_RELATING_TO_ORDERS:
+        elif document_type is DocumentType.OPINION_RELATING_TO_ORDERS:
             return OpinionRelatingToOrder(
                 date=date,
                 text=parsed_text,
