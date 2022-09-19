@@ -298,6 +298,30 @@ def create_court(current: bool) -> Iterable[Justice]:
         is_active=True,
     )
 
+    kennedy = Justice(
+        first_name='Anthony',
+        last_name='Kennedy',
+        tag=JusticeTag.KENNEDY,
+        start_date=date(1988, 2, 18),
+        birth_date=date(1936, 7, 23),
+        nominating_president=President.REAGAN,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.CONSERVATIVE,
+        is_active=False,
+    )
+
+    ginsburg = Justice(
+        first_name='Ruth',
+        last_name='Ginsburg',
+        tag=JusticeTag.GINSBURG,
+        start_date=date(1993, 8, 10),
+        birth_date=date(1933, 3, 15),
+        nominating_president=President.CLINTON,
+        role=Role.ASSOCIATE_JUSTICE,
+        ideology=Ideology.LIBERAL,
+        is_active=False,
+    )
+
     scalia = Justice(
         first_name='Antonin',
         middle_name='Gregory',
@@ -340,7 +364,7 @@ def create_court(current: bool) -> Iterable[Justice]:
     justices = (
         chief, thomas, breyer, alito, sotomayor,
         kagan, gorsuch, kavanaugh, barrett, jackson,
-        scalia, souter,
+        scalia, souter, kennedy, ginsburg,
     )
     if current:
         return (justice for justice in justices if justice.is_active)
